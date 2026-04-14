@@ -1,0 +1,265 @@
+.cafe-app {
+  font-family: "Roboto Condensed", "Helvetica Neue", Arial, sans-serif;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: #1f2d3d;
+  background: #f6f8fb;
+}
+
+.cafe-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #d6dfeb;
+  padding: 10px 12px;
+  background: #edf2f8;
+}
+
+.cafe-title {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.cafe-subtitle {
+  font-size: 12px;
+  color: #5c738d;
+}
+
+.cafe-refresh-btn,
+.cafe-tab-btn,
+.cafe-btn {
+  border: 1px solid #7a95b1;
+  background: #ffffff;
+  color: #2f4d6f;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.cafe-chip-btn {
+  border: 1px solid #7a95b1;
+  background: #ffffff;
+  color: #2f4d6f;
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.cafe-chip-btn.is-active {
+  background: #2f6f9f;
+  color: #fff;
+  border-color: #2f6f9f;
+}
+
+.cafe-refresh-btn:hover,
+.cafe-tab-btn:hover,
+.cafe-btn:hover {
+  background: #eef4fb;
+}
+
+.cafe-error {
+  margin: 8px 12px;
+  padding: 8px;
+  border: 1px solid #d9a2a2;
+  border-radius: 4px;
+  color: #8f1f1f;
+  background: #fdecec;
+}
+
+.cafe-loading {
+  padding: 16px;
+  font-size: 14px;
+}
+
+.cafe-tab-nav {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  border-bottom: 1px solid #d6dfeb;
+  padding: 8px 12px;
+  background: #f7fafe;
+}
+
+.cafe-tab-btn {
+  white-space: nowrap;
+}
+
+.cafe-tab-btn.is-active {
+  background: #2f6f9f;
+  color: #fff;
+  border-color: #2f6f9f;
+}
+
+.cafe-body {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+}
+
+.cafe-card {
+  border: 1px solid #d6dfeb;
+  border-radius: 6px;
+  background: #fff;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.cafe-card h4 {
+  margin: 0 0 8px;
+}
+
+.cafe-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cafe-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cafe-field label {
+  font-size: 12px;
+  color: #47607a;
+}
+
+.cafe-field select,
+.cafe-field input[type="range"] {
+  width: 100%;
+}
+
+.cafe-switch-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.cafe-dynamics-layout {
+  display: grid;
+  grid-template-columns: minmax(340px, 1.25fr) minmax(280px, 0.9fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.cafe-dynamics-card {
+  container-type: inline-size;
+}
+
+.cafe-dynamics-controls-panel,
+.cafe-dynamics-preview-panel {
+  border: 1px solid #d8e1ec;
+  border-radius: 6px;
+  background: #f8fbff;
+  padding: 10px;
+}
+
+.cafe-dynamics-control-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.cafe-dynamics-switches {
+  margin-top: 10px;
+}
+
+.cafe-dynamics-sliders {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.cafe-dynamics-refresh-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.cafe-subsection-title {
+  margin: 0 0 8px;
+}
+
+.cafe-dynamics-preview-panel svg {
+  width: 100%;
+  height: auto;
+}
+
+.cafe-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.cafe-table th,
+.cafe-table td {
+  border: 1px solid #d8e1ec;
+  padding: 4px 6px;
+  text-align: left;
+}
+
+.cafe-table th {
+  background: #f0f4fa;
+}
+
+.cafe-placeholder {
+  border: 1px dashed #9db4cb;
+  border-radius: 6px;
+  padding: 14px;
+  background: #f9fbfe;
+}
+
+.cafe-note {
+  font-size: 12px;
+  color: #557087;
+}
+
+.cafe-static-image-wrap {
+  border: 1px solid #d8e1ec;
+  border-radius: 6px;
+  background: #f8fbff;
+  padding: 8px;
+  overflow: auto;
+}
+
+.cafe-static-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 560px;
+  object-fit: contain;
+}
+
+@media (max-width: 820px) {
+  .cafe-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .cafe-dynamics-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container (max-width: 920px) {
+  .cafe-dynamics-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .cafe-dynamics-preview-panel {
+    order: 2;
+  }
+
+  .cafe-dynamics-controls-panel {
+    order: 1;
+  }
+}

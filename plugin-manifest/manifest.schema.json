@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cafe.cellxgene/plugin-manifest.schema.json",
+  "title": "CAFE Plugin Manifest",
+  "type": "object",
+  "required": ["apiVersion", "plugin", "capabilities", "modules"],
+  "properties": {
+    "apiVersion": { "type": "integer", "minimum": 1 },
+    "dataset": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "plugin": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "defaultTab": { "type": "string" },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "enabled"],
+        "properties": {
+          "key": { "type": "string" },
+          "enabled": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

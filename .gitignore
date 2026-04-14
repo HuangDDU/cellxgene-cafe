@@ -1,0 +1,41 @@
+# Python caches and bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node and frontend build outputs
+client/node_modules/
+node_modules/
+dist/
+client/dist/
+
+# Local runtime and temp files
+.cafe/
+*.log
+tmp/
+.cache/
+
+# Environment files
+.venv/
+venv/
+.env
+.env.*
+
+# Notebook cache
+.ipynb_checkpoints/
+
+# Large dataset artifacts
+*.h5ad
+*.h5
+*.loom
+*.zarr
+*.npz
+*.npy
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

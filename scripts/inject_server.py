@@ -19,13 +19,13 @@ def inject_blueprint() -> None:
         return
 
     if IMPORT_SENTINEL not in content:
-        anchor = "import server.common.rest as common_rest\n"
+        anchor = "import server.common.rest as common_rest\n" # follow the last import
         if anchor not in content:
             raise RuntimeError("Cannot find import anchor in app.py")
         content = content.replace(anchor, f"{anchor}{IMPORT_SENTINEL}\n", 1)
 
     if REGISTER_SENTINEL not in content:
-        anchor = "        self.app.register_blueprint(resources.blueprint)\n"
+        anchor = "        self.app.register_blueprint(resources.blueprint)\n" # follow the last blueprint registration
         if anchor not in content:
             raise RuntimeError("Cannot find blueprint registration anchor in app.py")
         content = content.replace(anchor, f"{anchor}{REGISTER_SENTINEL}\n", 1)

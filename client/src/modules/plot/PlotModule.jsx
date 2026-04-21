@@ -3,7 +3,18 @@ import React, { useMemo, useState } from "react";
 import { buildStaticPlotUrl } from "../../lib/api";
 import PreviewNetwork from "./PreviewNetwork";
 
-function PlotModule({ context, bridgeState, onPatchPlotState, onRefreshContext }) {
+function PlotModule({
+  context,
+  bridgeState,
+  onSetLayoutChoice,
+  onSetTrajectoryChoice,
+  onSetTrajectoryVisible,
+  onSetTrajectoryAnchor,
+  onSetTrajectoryType,
+  onSetTrajectoryNodeSize,
+  onSetTrajectoryEdgeWidth,
+  onRefreshContext,
+}) {
   const plotState = bridgeState?.trajectory || {};
   const trajectoryChoice = bridgeState?.trajectoryChoice || {};
   const layoutChoice = bridgeState?.layoutChoice || {};
@@ -31,13 +42,13 @@ function PlotModule({ context, bridgeState, onPatchPlotState, onRefreshContext }
 
   const onTrajectoryChange = (event) => {
     const value = event.target.value;
-    onPatchPlotState({ trajectoryChoice: value });
+    onSetTrajectoryChoice(value);
     onRefreshContext({ trajectory: value, layout: currentLayout });
   };
 
   const onLayoutChange = (event) => {
     const value = event.target.value;
-    onPatchPlotState({ layoutChoice: value });
+    onSetLayoutChoice(value);
     onRefreshContext({ trajectory: currentTrajectory, layout: value });
   };
 
@@ -84,7 +95,7 @@ function PlotModule({ context, bridgeState, onPatchPlotState, onRefreshContext }
                 <input
                   type="checkbox"
                   checked={!!plotState.showTrajectory}
-                  onChange={(event) => onPatchPlotState({ showTrajectory: event.target.checked })}
+                  onChange={(event) => onSetTrajectoryVisible(event.target.checked)}
                 />{" "}
                 Show
               </label>
@@ -93,7 +104,7 @@ function PlotModule({ context, bridgeState, onPatchPlotState, onRefreshContext }
                 <input
                   type="checkbox"
                   checked={!!plotState.anchorTrajectory}
-                  onChange={(event) => onPatchPlotState({ anchorTrajectory: event.target.checked })}
+                  onChange={(event) => onSetTrajectoryAnchor(event.target.checked)}
                 />{" "}
                 Anchor
               </label>
@@ -103,7 +114,7 @@ function PlotModule({ context, bridgeState, onPatchPlotState, onRefreshContext }
                   type="radio"
                   name="trajectoryType"
                   checked={(plotState.trajectoryType || "milestone") === "milestone"}
-                  onChange={() => onPatchPlotState({ trajectoryType: "milestone" })}
+                  onChange={() => onSetTrajectoryType("milestone")}
                 />{" "}
                 milestone
               </label>
@@ -113,7 +124,7 @@ function PlotModule({ context, bridgeState, onPatchPlotState, onRefreshContext }
                   type="radio"
                   name="trajectoryType"
                   checked={(plotState.trajectoryType || "milestone") === "waypoint"}
-                  onChange={() => onPatchPlotState({ trajectoryType: "waypoint" })}
+                  onChange={() => onSetTrajectoryType("waypoint")}
                 />{" "}
                 waypoint
               </label>
@@ -128,7 +139,7 @@ function PlotModule({ context, bridgeState, onPatchPlotState, onRefreshContext }
                   max="10"
                   step="0.1"
                   value={plotState.nodeSize ?? 2.5}
-                  onChange={(event) => onPatchPlotState({ nodeSize: Number(event.target.value) })}
+                  onChange={(event) => onSetTrajectoryNodeSize(Number(event.target.value))}
                 />
               </div>
 
@@ -140,7 +151,7 @@ function PlotModule({ context, bridgeState, onPatchPlotState, onRefreshContext }
                   max="10"
                   step="0.1"
                   value={plotState.edgeWidth ?? 1}
-                  onChange={(event) => onPatchPlotState({ edgeWidth: Number(event.target.value) })}
+                  onChange={(event) => onSetTrajectoryEdgeWidth(Number(event.target.value))}
                 />
               </div>
             </div>

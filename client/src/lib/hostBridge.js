@@ -14,10 +14,66 @@ function defaultBridgeState() {
   };
 }
 
+let fallbackState = defaultBridgeState();
+
+function hasHostBridge() {
+  const bridge = window.CafeHostBridge;
+  return !!(bridge && typeof bridge.getState === "function");
+}
+
+function mergeFallbackPatch(state, patch) {
+  if (!patch || typeof patch !== "object") {
+    return state;
+  }
+
+  const next = {
+    ...state,
+    layoutChoice: { ...(state.layoutChoice || {}) },
+    trajectoryChoice: { ...(state.trajectoryChoice || {}) },
+    trajectory: { ...(state.trajectory || {}) },
+  };
+
+  if (Object.prototype.hasOwnProperty.call(patch, "layoutChoice")) {
+    if (typeof patch.layoutChoice === "string") {
+      next.layoutChoice.current = patch.layoutChoice;
+    } else if (patch.layoutChoice && typeof patch.layoutChoice === "object") {
+      next.layoutChoice = { ...next.layoutChoice, ...patch.layoutChoice };
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "trajectoryChoice")) {
+    if (typeof patch.trajectoryChoice === "string") {
+      next.trajectoryChoice.current = patch.trajectoryChoice;
+    } else if (patch.trajectoryChoice && typeof patch.trajectoryChoice === "object") {
+      next.trajectoryChoice = { ...next.trajectoryChoice, ...patch.trajectoryChoice };
+    }
+  }
+
+  if (patch.trajectory && typeof patch.trajectory === "object") {
+    next.trajectory = { ...next.trajectory, ...patch.trajectory };
+  }
+
+  const trajectoryKeys = [
+    "showTrajectory",
+    "anchorTrajectory",
+    "trajectoryType",
+    "nodeSize",
+    "edgeWidth",
+  ];
+
+  trajectoryKeys.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(patch, key)) {
+      next.trajectory[key] = patch[key];
+    }
+  });
+
+  return next;
+}
+
 export function getBridgeState() {
   const bridge = window.CafeHostBridge;
-  if (!bridge || typeof bridge.getState !== "function") {
-    return defaultBridgeState();
+  if (!hasHostBridge()) {
+    return fallbackState;
   }
 
   try {
@@ -30,8 +86,10 @@ export function getBridgeState() {
 
 export function subscribeBridgeState(listener) {
   const bridge = window.CafeHostBridge;
-  if (!bridge || typeof bridge.subscribe !== "function") {
-    return () => {};
+  if (!hasHostBridge() || typeof bridge.subscribe !== "function") {
+    const handler = () => listener(fallbackState);
+    window.addEventListener(UPDATE_EVENT, handler);
+    return () => window.removeEventListener(UPDATE_EVENT, handler);
   }
 
   try {
@@ -49,5 +107,6 @@ export function applyTrajectoryPatch(patch) {
     return;
   }
 
-  window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: patch }));
+  fallbackState = mergeFallbackPatch(fallbackState, patch);
+  window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: fallbackState }));
 }

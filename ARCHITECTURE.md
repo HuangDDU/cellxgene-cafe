@@ -232,3 +232,30 @@ Recommended execution order:
 - Complete gateway integration.
 
 This file is the architecture reference and should be reviewed before implementation changes.
+
+## 11. Config Script Integration
+
+`config.sh` and `dev.sh` are deployment adapters for the same architecture, not alternative architecture layers.
+
+### 11.1 Runtime Injection Principle
+
+- Resolve the runtime Cellxgene installation path from target Python environment.
+- Inject minimal hooks only:
+  - backend blueprint registration in host `app.py`
+  - frontend launcher/panel block in host HTML template
+- Deploy connector assets (`cafe_api.py`, `cafe_util.py`, `cafe-plugin.js`) into runtime path.
+
+This keeps host-side changes minimal and preserves plugin boundaries.
+
+### 11.2 Page Layout Mapping
+
+- Host canvas and overlays remain in main Cellxgene view.
+- Plugin panel is an independent floating window and never becomes a hard host sidebar dependency.
+- Dynamics controls in plugin panel drive host rendering state, while Static views remain plugin/backend-rendered images.
+
+### 11.3 Host and Plugin Data Flow
+
+- Host Redux state is the source of truth for embedding/trajectory display state.
+- Plugin reads/observes host state via `CafeHostBridge.getState()` and `CafeHostBridge.subscribe()`.
+- Plugin writes host state changes via `CafeHostBridge.updateTrajectory()`.
+- Plugin context and preview data come from backend API (`/api/cafe/context`) rather than deep host internals.

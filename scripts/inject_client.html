@@ -1,0 +1,136 @@
+<!-- CAFE-PLUGIN-INJECTION START -->
+<script defer src="static/cafe-plugin.js"></script>
+<script>
+(function () {
+	const launcherId = "cafe-plugin-launcher";
+	const panelId = "cafe-plugin-panel";
+	const rootId = "cafe-plugin-root";
+	const jsPanelCssId = "cafe-plugin-jspanel-css";
+	const jsPanelScriptSelector = "script[data-cafe-jspanel='1']";
+	const jsPanelCssUrl = "https://cdn.jsdelivr.net/npm/jspanel4@4.16.1/dist/jspanel.min.css";
+	const jsPanelJsUrl = "https://cdn.jsdelivr.net/npm/jspanel4@4.16.1/dist/jspanel.min.js";
+	let jsPanelLoader = null;
+
+	function ensureJsPanelCss() {
+		if (document.getElementById(jsPanelCssId)) {
+			return;
+		}
+		const link = document.createElement("link");
+		link.id = jsPanelCssId;
+		link.rel = "stylesheet";
+		link.href = jsPanelCssUrl;
+		document.head.appendChild(link);
+	}
+
+	function ensureJsPanelLoaded() {
+		if (window.jsPanel) {
+			return Promise.resolve(true);
+		}
+
+		if (jsPanelLoader) {
+			return jsPanelLoader;
+		}
+
+		ensureJsPanelCss();
+		jsPanelLoader = new Promise((resolve) => {
+			const existing = document.querySelector(jsPanelScriptSelector);
+			if (existing) {
+				if (window.jsPanel) {
+					resolve(true);
+					return;
+				}
+				existing.addEventListener("load", () => resolve(!!window.jsPanel), {
+					once: true,
+				});
+				existing.addEventListener("error", () => resolve(false), {
+					once: true,
+				});
+				return;
+			}
+
+			const script = document.createElement("script");
+			script.src = jsPanelJsUrl;
+			script.async = true;
+			script.dataset.cafeJspanel = "1";
+			script.addEventListener("load", () => resolve(!!window.jsPanel), {
+				once: true,
+			});
+			script.addEventListener("error", () => resolve(false), {
+				once: true,
+			});
+			document.head.appendChild(script);
+		});
+
+		return jsPanelLoader;
+	}
+
+	function mountCafePlugin() {
+		if (window.CafePlugin && typeof window.CafePlugin.mount === "function") {
+			window.CafePlugin.mount(rootId);
+		} else if (window.mountCafeApp) {
+			window.mountCafeApp(rootId);
+		} else {
+			console.error("CAFE plugin bundle loaded but mount function is missing.");
+		}
+	}
+
+	async function openPanel() {
+		const loaded = await ensureJsPanelLoaded();
+		if (!loaded || !window.jsPanel) {
+			console.error("jsPanel is not loaded.");
+			return;
+		}
+
+		const existing = document.getElementById(panelId);
+		if (existing && existing.jspanel) {
+			existing.jspanel.front();
+			return;
+		}
+
+		window.jsPanel.create({
+			id: panelId,
+			headerTitle: "CAFE Plugins",
+			theme: "primary",
+			contentSize: "780 640",
+			position: "center-top 0 64",
+			content: '<div id="' + rootId + '" style="height:100%;overflow:auto;"></div>',
+			callback: mountCafePlugin,
+			onclosed: function () {
+				if (window.CafePlugin && typeof window.CafePlugin.unmount === "function") {
+					window.CafePlugin.unmount(rootId);
+				}
+			},
+		});
+	}
+
+	function ensureLauncherButton() {
+		if (document.getElementById(launcherId)) {
+			return;
+		}
+
+		const button = document.createElement("button");
+		button.id = launcherId;
+		button.type = "button";
+		button.textContent = "Cafe Plugins";
+		button.style.position = "fixed";
+		button.style.right = "14px";
+		button.style.bottom = "16px";
+		button.style.zIndex = "9999";
+		button.style.padding = "6px 10px";
+		button.style.border = "1px solid #6a8fb2";
+		button.style.borderRadius = "4px";
+		button.style.background = "#2f6f9f";
+		button.style.color = "#fff";
+		button.style.cursor = "pointer";
+		button.title = "Open CAFE plugin window";
+		button.addEventListener("click", openPanel);
+		document.body.appendChild(button);
+	}
+
+	window.openCafePluginPanel = openPanel;
+	window.addEventListener("load", function () {
+		setTimeout(ensureLauncherButton, 700);
+	});
+})();
+</script>
+<!-- CAFE-PLUGIN-INJECTION END -->

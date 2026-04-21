@@ -2,10 +2,19 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import { fetchContext, fetchManifest } from "./lib/api";
 import {
-  applyTrajectoryPatch,
+  dispatchCafeAction,
   getBridgeState,
   subscribeBridgeState,
 } from "./lib/hostBridge";
+import {
+  setCafeLayoutChoice,
+  setCafeTrajectoryAnchor,
+  setCafeTrajectoryEdgeWidth,
+  setCafeTrajectoryNodeSize,
+  setCafeTrajectoryType,
+  setCafeTrajectoryVisible,
+  setCafeTrajectoryChoice,
+} from "./reducers/cafe/actions";
 import TabNav from "./components/TabNav";
 import PlotModule from "./modules/plot/PlotModule";
 import DataModule from "./modules/data/DataModule";
@@ -20,6 +29,19 @@ const moduleOrder = [
   { key: "explorer", label: "Explorer" },
   { key: "agent", label: "Agent" },
 ];
+
+function readReduxDebugState() {
+  const store = window.__CAFE_REDUX_STORE__ || window.__REDUX_STORE__ || null;
+  const bridge = window.CafeHostBridge || null;
+
+  return {
+    hasStore: !!store,
+    hasBridge: !!bridge,
+    storeState: store?.getState ? store.getState() : null,
+    bridgeState: bridge?.getState ? bridge.getState() : null,
+    updatedAt: new Date().toLocaleTimeString(),
+  };
+}
 
 function App() {
   const [manifest, setManifest] = useState(null);
@@ -58,11 +80,12 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  const modules = useMemo(() => {
-    const enabledByKey = {};
-    if (manifest?.modules) {
-      manifest.modules.forEach((item) => {
-        enabledByKey[item.key] = !!item.enabled;
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") {
+      return undefined;
+    }
+
+    const store = window.__CAFE_REDUX_STORE__ || window.__REDUX_STORE__;
       });
     }
     return moduleOrder.map((item) => ({
@@ -71,23 +94,41 @@ function App() {
     }));
   }, [manifest]);
 
-  const onPatchPlotState = (patch) => {
-    applyTrajectoryPatch(patch);
-    setBridgeState((prev) => ({
-      ...prev,
-      trajectory: {
-        ...prev.trajectory,
-        ...patch,
-      },
-      trajectoryChoice: {
-        ...prev.trajectoryChoice,
-        current: patch.trajectoryChoice ?? prev.trajectoryChoice?.current,
-      },
-      layoutChoice: {
-        ...prev.layoutChoice,
-        current: patch.layoutChoice ?? prev.layoutChoice?.current,
-      },
-    }));
+  const syncBridgeState = () => setBridgeState(getBridgeState());
+
+  const onSetLayoutChoice = (layoutChoice) => {
+    dispatchCafeAction(setCafeLayoutChoice(layoutChoice));
+    syncBridgeState();
+  };
+
+  const onSetTrajectoryChoice = (trajectoryChoice) => {
+    dispatchCafeAction(setCafeTrajectoryChoice(trajectoryChoice));
+    syncBridgeState();
+  };
+
+  const onSetTrajectoryVisible = (showTrajectory) => {
+    dispatchCafeAction(setCafeTrajectoryVisible(showTrajectory));
+    syncBridgeState();
+  };
+
+  const onSetTrajectoryAnchor = (anchorTrajectory) => {
+    dispatchCafeAction(setCafeTrajectoryAnchor(anchorTrajectory));
+    syncBridgeState();
+  };
+
+  const onSetTrajectoryType = (trajectoryType) => {
+    dispatchCafeAction(setCafeTrajectoryType(trajectoryType));
+    syncBridgeState();
+  };
+
+  const onSetTrajectoryNodeSize = (nodeSize) => {
+    dispatchCafeAction(setCafeTrajectoryNodeSize(nodeSize));
+    syncBridgeState();
+  };
+
+  const onSetTrajectoryEdgeWidth = (edgeWidth) => {
+    dispatchCafeAction(setCafeTrajectoryEdgeWidth(edgeWidth));
+    syncBridgeState();
   };
 
   const onRefreshContext = async (nextParams = {}) => {
@@ -105,7 +146,13 @@ function App() {
         <PlotModule
           context={context}
           bridgeState={bridgeState}
-          onPatchPlotState={onPatchPlotState}
+          onSetLayoutChoice={onSetLayoutChoice}
+          onSetTrajectoryChoice={onSetTrajectoryChoice}
+          onSetTrajectoryVisible={onSetTrajectoryVisible}
+          onSetTrajectoryAnchor={onSetTrajectoryAnchor}
+          onSetTrajectoryType={onSetTrajectoryType}
+          onSetTrajectoryNodeSize={onSetTrajectoryNodeSize}
+          onSetTrajectoryEdgeWidth={onSetTrajectoryEdgeWidth}
           onRefreshContext={onRefreshContext}
         />
       );
@@ -148,6 +195,11 @@ function App() {
       <TabNav items={modules} activeKey={activeTab} onChange={setActiveTab} />
 
       <div className="cafe-body">{renderModule()}</div>
+
+
+
+
+      {null}
     </div>
   );
 }

@@ -60,10 +60,11 @@ This mode is designed for iterative development and debugging:
 
 1. Inject plugin hooks into the resolved runtime Cellxgene environment.
 2. Keep plugin backend files linked to source (`server/cafe_api.py`, `server/cafe_util.py`).
-3. Start plugin frontend watcher in development mode (`webpack --watch`).
+3. Start plugin frontend dev server in development mode (`webpack-dev-server` + HMR) so `client/src` changes recompile without page reload.
 4. Start host Cellxgene frontend dev server (development bundle, React/Redux inspection friendly).
 5. Patch runtime template to load host dev bundle from the frontend dev server.
-6. Launch backend in debug mode from target environment.
+6. Load the plugin bundle from the plugin dev server so component updates hot-swap in place.
+7. Launch backend in debug mode from target environment.
 
 Default ports:
 
@@ -76,6 +77,8 @@ Useful options:
 - `CELLXGENE_SOURCE_ROOT`: host source root for frontend dev server (default `../cellxgene`).
 - `CELLXGENE_DATASET`: dataset path used by backend launch.
 - `CELLXGENE_FORCE_KILL_PORT`: set `1` to kill conflicting processes on backend/frontend ports.
+- `CELLXGENE_PLUGIN_HMR`: set `1` (default) to run plugin webpack-dev-server HMR; set `0` to fall back to a one-time production bundle.
+- `CELLXGENE_PLUGIN_DEV_PORT`: plugin dev server port (default `3001`).
 
 ## Config-Driven Pluginization Model
 

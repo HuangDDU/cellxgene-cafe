@@ -1,0 +1,27 @@
+.cafe-static-note {
+  margin-bottom: 10px;
+}
+
+.cafe-static-switches {
+  margin-bottom: 10px;
+}
+
+.cafe-static-refresh-row {
+  margin-bottom: 10px;
+}
+
+.cafe-static-image-wrap {
+  border: 1px solid #d8e1ec;
+  border-radius: 6px;
+  background: #f8fbff;
+  padding: 8px;
+  overflow: auto;
+}
+
+.cafe-static-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 560px;
+  object-fit: contain;
+}

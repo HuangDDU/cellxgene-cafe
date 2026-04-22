@@ -33,7 +33,13 @@ def load_injection_html() -> str:
             "Injection template must include CAFE-PLUGIN-INJECTION START/END markers"
         )
 
-    return injection_html
+    bundle_url = os.environ.get("CAFE_PLUGIN_BUNDLE_URL", "static/cafe-plugin.js")
+    hmr_enabled = "1" if os.environ.get("CAFE_PLUGIN_HMR_ENABLED", "0") == "1" else "0"
+
+    return (
+        injection_html.replace("__CAFE_PLUGIN_BUNDLE_URL__", bundle_url)
+        .replace("__CAFE_PLUGIN_HMR_ENABLED__", hmr_enabled)
+    )
 
 
 def inject_html(target_file: Path, injection_html: str) -> None:

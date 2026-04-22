@@ -1,112 +1,150 @@
-const UPDATE_EVENT = "cafe:trajectory:update";
-
-function defaultBridgeState() {
-  return {
-    layoutChoice: { current: "" },
-    trajectoryChoice: { current: "", available: [] },
-    trajectory: {
-      showTrajectory: false,
-      anchorTrajectory: false,
-      trajectoryType: "milestone",
-      nodeSize: 2.5,
-      edgeWidth: 1
-    }
-  };
-}
-
-let fallbackState = defaultBridgeState();
+import cafeStore from "./cafeStore";
+import {
+  CAFE_LAYOUT_CHOICE_SET,
+  CAFE_TRAJECTORY_ANCHOR_SET,
+  CAFE_TRAJECTORY_CHOICE_SET,
+  CAFE_TRAJECTORY_EDGE_WIDTH_SET,
+  CAFE_TRAJECTORY_NODE_SIZE_SET,
+  CAFE_TRAJECTORY_TYPE_SET,
+  CAFE_TRAJECTORY_UPDATE,
+  CAFE_TRAJECTORY_VISIBILITY_SET,
+} from "../reducers/cafe/actions";
+import { createDefaultCafeBridgeState } from "../reducers/cafe/selectors";
 
 function hasHostBridge() {
   const bridge = window.CafeHostBridge;
   return !!(bridge && typeof bridge.getState === "function");
 }
 
-function mergeFallbackPatch(state, patch) {
-  if (!patch || typeof patch !== "object") {
-    return state;
-  }
+function createBridgeState() {
+  const localState = cafeStore.getState() || createDefaultCafeBridgeState();
+  const hostState = hasHostBridge() ? window.CafeHostBridge.getState() : {};
 
-  const next = {
-    ...state,
-    layoutChoice: { ...(state.layoutChoice || {}) },
-    trajectoryChoice: { ...(state.trajectoryChoice || {}) },
-    trajectory: { ...(state.trajectory || {}) },
+  return {
+    ...localState,
+    host: hostState?.host || {
+      nObs: null,
+      nVar: null,
+      currentLayout: localState.layoutChoice?.current || "",
+      availableLayouts: localState.layoutChoice?.available || [],
+      currentDimNames: localState.layoutChoice?.currentDimNames || [],
+    },
   };
-
-  if (Object.prototype.hasOwnProperty.call(patch, "layoutChoice")) {
-    if (typeof patch.layoutChoice === "string") {
-      next.layoutChoice.current = patch.layoutChoice;
-    } else if (patch.layoutChoice && typeof patch.layoutChoice === "object") {
-      next.layoutChoice = { ...next.layoutChoice, ...patch.layoutChoice };
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(patch, "trajectoryChoice")) {
-    if (typeof patch.trajectoryChoice === "string") {
-      next.trajectoryChoice.current = patch.trajectoryChoice;
-    } else if (patch.trajectoryChoice && typeof patch.trajectoryChoice === "object") {
-      next.trajectoryChoice = { ...next.trajectoryChoice, ...patch.trajectoryChoice };
-    }
-  }
-
-  if (patch.trajectory && typeof patch.trajectory === "object") {
-    next.trajectory = { ...next.trajectory, ...patch.trajectory };
-  }
-
-  const trajectoryKeys = [
-    "showTrajectory",
-    "anchorTrajectory",
-    "trajectoryType",
-    "nodeSize",
-    "edgeWidth",
-  ];
-
-  trajectoryKeys.forEach((key) => {
-    if (Object.prototype.hasOwnProperty.call(patch, key)) {
-      next.trajectory[key] = patch[key];
-    }
-  });
-
-  return next;
 }
 
-export function getBridgeState() {
-  const bridge = window.CafeHostBridge;
+function syncLayoutFromHost() {
   if (!hasHostBridge()) {
-    return fallbackState;
-  }
-
-  try {
-    return bridge.getState() || defaultBridgeState();
-  } catch (error) {
-    console.error("Failed to read CafeHostBridge state", error);
-    return defaultBridgeState();
-  }
-}
-
-export function subscribeBridgeState(listener) {
-  const bridge = window.CafeHostBridge;
-  if (!hasHostBridge() || typeof bridge.subscribe !== "function") {
-    const handler = () => listener(fallbackState);
-    window.addEventListener(UPDATE_EVENT, handler);
-    return () => window.removeEventListener(UPDATE_EVENT, handler);
-  }
-
-  try {
-    return bridge.subscribe(listener);
-  } catch (error) {
-    console.error("Failed to subscribe CafeHostBridge", error);
-    return () => {};
-  }
-}
-
-export function applyTrajectoryPatch(patch) {
-  const bridge = window.CafeHostBridge;
-  if (bridge && typeof bridge.updateTrajectory === "function") {
-    bridge.updateTrajectory(patch);
     return;
   }
 
-  fallbackState = mergeFallbackPatch(fallbackState, patch);
-  window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: fallbackState }));
+  const hostState = window.CafeHostBridge.getState() || {};
+  const nextLayout = hostState?.layoutChoice?.current || "";
+  const currentLayout = cafeStore.getState()?.layoutChoice?.current || "";
+  if (!nextLayout || nextLayout === currentLayout) {
+    return;
+  }
+
+  cafeStore.dispatch({
+    type: CAFE_LAYOUT_CHOICE_SET,
+    layoutChoice: nextLayout,
+    currentDimNames: hostState?.layoutChoice?.currentDimNames || [],
+  });
+}
+
+export function getBridgeState() {
+  syncLayoutFromHost();
+  return createBridgeState();
+}
+
+export function subscribeBridgeState(listener) {
+  if (typeof listener !== "function") {
+    return () => {};
+  }
+
+  const notify = () => listener(createBridgeState());
+  const unsubscribeStore = cafeStore.subscribe(notify);
+  let unsubscribeHost = () => {};
+
+  if (hasHostBridge() && typeof window.CafeHostBridge.subscribe === "function") {
+    unsubscribeHost = window.CafeHostBridge.subscribe(() => {
+      syncLayoutFromHost();
+      notify();
+    });
+  }
+
+  notify();
+  return () => {
+    unsubscribeStore();
+    unsubscribeHost();
+  };
+}
+
+export function applyTrajectoryPatch(patch) {
+  if (!patch || typeof patch !== "object") {
+    return;
+  }
+
+  const hostBridge = window.CafeHostBridge;
+  if (Object.prototype.hasOwnProperty.call(patch, "layoutChoice") && hostBridge) {
+    hostBridge.dispatch({
+      type: "set layout choice",
+      layoutChoice: patch.layoutChoice,
+    });
+  }
+
+  cafeStore.dispatch({
+    type: CAFE_TRAJECTORY_UPDATE,
+    patch,
+  });
+}
+
+export function dispatchCafeAction(action) {
+  if (!action || typeof action !== "object") {
+    return;
+  }
+
+  cafeStore.dispatch(action);
+
+  if (!hasHostBridge()) {
+    return;
+  }
+
+  if (action.type === CAFE_LAYOUT_CHOICE_SET) {
+    window.CafeHostBridge.dispatch({
+      type: "set layout choice",
+      layoutChoice: action.layoutChoice,
+    });
+  }
+
+  if (action.type === CAFE_TRAJECTORY_CHOICE_SET) {
+    window.CafeHostBridge.dispatch({
+      type: "cafe/trajectoryChoice/set",
+      trajectoryChoice: action.trajectoryChoice,
+      available: action.available,
+    });
+  }
+
+  if (action.type === CAFE_TRAJECTORY_VISIBILITY_SET) {
+    window.CafeHostBridge.dispatch({ type: "cafe/trajectory/show", showTrajectory: action.showTrajectory });
+  }
+
+  if (action.type === CAFE_TRAJECTORY_ANCHOR_SET) {
+    window.CafeHostBridge.dispatch({ type: "cafe/trajectory/anchor", anchorTrajectory: action.anchorTrajectory });
+  }
+
+  if (action.type === CAFE_TRAJECTORY_TYPE_SET) {
+    window.CafeHostBridge.dispatch({ type: "cafe/trajectory/type", trajectoryType: action.trajectoryType });
+  }
+
+  if (action.type === CAFE_TRAJECTORY_NODE_SIZE_SET) {
+    window.CafeHostBridge.dispatch({ type: "cafe/trajectory/nodeSize", nodeSize: action.nodeSize });
+  }
+
+  if (action.type === CAFE_TRAJECTORY_EDGE_WIDTH_SET) {
+    window.CafeHostBridge.dispatch({ type: "cafe/trajectory/edgeWidth", edgeWidth: action.edgeWidth });
+  }
+
+  if (action.type === CAFE_TRAJECTORY_UPDATE) {
+    window.CafeHostBridge.dispatch({ type: "cafe/trajectory/update", patch: action.patch });
+  }
 }

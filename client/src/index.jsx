@@ -5,6 +5,18 @@ import App from "./App";
 import "./styles.css";
 
 const roots = new Map();
+let hotAcceptRegistered = false;
+
+function render(root) {
+  root.render(<App />);
+
+  if (module.hot && !hotAcceptRegistered) {
+    hotAcceptRegistered = true;
+    module.hot.accept("./App", () => {
+      root.render(<App />);
+    });
+  }
+}
 
 function mount(containerId) {
   const container = document.getElementById(containerId);
@@ -19,7 +31,7 @@ function mount(containerId) {
     roots.set(containerId, root);
   }
 
-  root.render(<App />);
+  render(root);
 }
 
 function unmount(containerId) {

@@ -1,15 +1,20 @@
 <!-- CAFE-PLUGIN-INJECTION START -->
-<script defer src="static/cafe-plugin.js"></script>
+<script defer src="__CAFE_PLUGIN_BUNDLE_URL__"></script>
 <script>
 (function () {
 	const launcherId = "cafe-plugin-launcher";
 	const panelId = "cafe-plugin-panel";
 	const rootId = "cafe-plugin-root";
+	const pluginBundleUrl = "__CAFE_PLUGIN_BUNDLE_URL__";
+	const pluginHmrEnabled = "__CAFE_PLUGIN_HMR_ENABLED__" === "1";
 	const jsPanelCssId = "cafe-plugin-jspanel-css";
 	const jsPanelScriptSelector = "script[data-cafe-jspanel='1']";
 	const jsPanelCssUrl = "https://cdn.jsdelivr.net/npm/jspanel4@4.16.1/dist/jspanel.min.css";
 	const jsPanelJsUrl = "https://cdn.jsdelivr.net/npm/jspanel4@4.16.1/dist/jspanel.min.js";
+	const devProbeIntervalMs = 1500;
 	let jsPanelLoader = null;
+	let devProbeTimer = null;
+	let lastPluginBundleVersion = null;
 
 	function ensureJsPanelCss() {
 		if (document.getElementById(jsPanelCssId)) {
@@ -62,6 +67,66 @@
 		});
 
 		return jsPanelLoader;
+	}
+
+	function isHostDevBundleMode() {
+		const scripts = Array.from(document.querySelectorAll("script[src]"));
+		return scripts.some(
+			(script) => script.src.includes("localhost:") && script.src.includes("/static/js/bundle.js")
+		);
+	}
+
+	function readBundleVersion(response) {
+		return (
+			response.headers.get("etag") ||
+			response.headers.get("last-modified") ||
+			response.headers.get("content-length") ||
+			""
+		);
+	}
+
+	async function probePluginBundleVersion() {
+		try {
+			const probeUrl = `${pluginBundleUrl}?__cafe_dev_probe=${Date.now()}`;
+			const response = await fetch(probeUrl, {
+				method: "HEAD",
+				cache: "no-store",
+				credentials: "same-origin",
+			});
+			if (!response.ok) {
+				return null;
+			}
+			return readBundleVersion(response);
+		} catch (error) {
+			return null;
+		}
+	}
+
+	async function reloadPageIfPluginBundleChanged() {
+		const nextVersion = await probePluginBundleVersion();
+		if (!nextVersion) {
+			return;
+		}
+
+		if (!lastPluginBundleVersion) {
+			lastPluginBundleVersion = nextVersion;
+			return;
+		}
+
+		if (nextVersion === lastPluginBundleVersion) {
+			return;
+		}
+
+		window.location.reload();
+	}
+
+	function startPluginDevAutoReload() {
+		if (pluginHmrEnabled || !isHostDevBundleMode() || devProbeTimer) {
+			return;
+		}
+
+		reloadPageIfPluginBundleChanged();
+		devProbeTimer = window.setInterval(reloadPageIfPluginBundleChanged, devProbeIntervalMs);
 	}
 
 	function mountCafePlugin() {
@@ -130,6 +195,8 @@
 	window.openCafePluginPanel = openPanel;
 	window.addEventListener("load", function () {
 		setTimeout(ensureLauncherButton, 700);
+		// Dev-only: auto reload host page when plugin bundle changes.
+		startPluginDevAutoReload();
 	});
 })();
 </script>

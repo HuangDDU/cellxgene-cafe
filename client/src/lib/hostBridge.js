@@ -45,8 +45,11 @@ export function subscribeBridgeState(listener) {
 export function applyTrajectoryPatch(patch) {
   const bridge = window.CafeHostBridge;
   if (bridge && typeof bridge.updateTrajectory === "function") {
-    bridge.updateTrajectory(patch);
-    return;
+    try {
+      bridge.updateTrajectory(patch);
+    } catch (error) {
+      console.error("Failed to update CafeHostBridge directly", error);
+    }
   }
 
   window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: patch }));

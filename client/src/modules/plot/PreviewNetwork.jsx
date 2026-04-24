@@ -4,7 +4,7 @@ const WIDTH = 300;
 const HEIGHT = 260;
 const PAD = 16;
 
-function PreviewNetwork({ preview }) {
+function PreviewNetwork({ preview, imageUrl = "", fallbackLabel = "" }) {
   const nodes = preview?.nodes || [];
   const edges = preview?.edges || [];
   const waypointSegments = preview?.waypointSegments || {};
@@ -43,6 +43,18 @@ function PreviewNetwork({ preview }) {
   };
 
   if (!nodes.length) {
+    if (imageUrl) {
+      return (
+        <div>
+          <div className="cafe-note" style={{ marginBottom: "8px" }}>
+            {fallbackLabel || "Graph preview is unavailable for this trajectory/layout; showing generated image instead."}
+          </div>
+          <div className="cafe-static-image-wrap">
+            <img key={imageUrl} className="cafe-static-image" src={imageUrl} alt="Trajectory preview" />
+          </div>
+        </div>
+      );
+    }
     return <div className="cafe-note">No preview graph available for this trajectory/layout.</div>;
   }
 

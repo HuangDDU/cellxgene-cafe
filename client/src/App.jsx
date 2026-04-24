@@ -28,8 +28,10 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [bridgeState, setBridgeState] = useState(getBridgeState());
+  const [dataRefreshToken, setDataRefreshToken] = useState(0);
 
-  const loadBootstrap = async (params = {}) => {
+  const loadBootstrap = async (params = {}, options = {}) => {
+    const preserveActiveTab = options.preserveActiveTab ?? false;
     setLoading(true);
     setError("");
     try {
@@ -39,7 +41,9 @@ function App() {
       ]);
       setManifest(manifestData);
       setContext(contextData);
-      setActiveTab(manifestData.defaultTab || "plot");
+      if (!preserveActiveTab) {
+        setActiveTab(manifestData.defaultTab || "plot");
+      }
     } catch (err) {
       setError(err?.message || "Failed to load CAFE plugin data");
     } finally {
@@ -57,6 +61,23 @@ function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!context) {
+      return;
+    }
+    const nextTrajectory = bridgeState?.trajectoryChoice?.current || "";
+    const nextLayout = bridgeState?.layoutChoice?.current || "";
+    const currentTrajectory = context?.current?.trajectory || "";
+    const currentLayout = context?.current?.layout || "";
+    if (nextTrajectory === currentTrajectory && nextLayout === currentLayout) {
+      return;
+    }
+    onRefreshContext({
+      trajectory: nextTrajectory || currentTrajectory,
+      layout: nextLayout || currentLayout,
+    });
+  }, [bridgeState?.trajectoryChoice?.current, bridgeState?.layoutChoice?.current]);
 
   const modules = useMemo(() => {
     const enabledByKey = {};
@@ -99,6 +120,32 @@ function App() {
     }
   };
 
+  const onMethodJobSucceeded = async (job) => {
+    const nextTrajectory = job?.result?.trajectoryId || job?.jobId || "";
+    const nextLayoutOptions = job?.result?.trajectorySummary?.layoutNames || [];
+    const currentLayout = bridgeState?.layoutChoice?.current || context?.current?.layout || "";
+    const nextLayout = nextLayoutOptions.includes(currentLayout)
+      ? currentLayout
+      : nextLayoutOptions[0] || currentLayout || "";
+
+    if (nextTrajectory) {
+      const patch = { trajectoryChoice: nextTrajectory };
+      if (nextLayout) {
+        patch.layoutChoice = nextLayout;
+      }
+      onPatchPlotState(patch);
+    }
+
+    await loadBootstrap(
+      {
+        trajectory: nextTrajectory,
+        layout: nextLayout,
+      },
+      { preserveActiveTab: true }
+    );
+    setDataRefreshToken((value) => value + 1);
+  };
+
   const renderModule = () => {
     if (activeTab === "plot") {
       return (
@@ -111,13 +158,13 @@ function App() {
       );
     }
     if (activeTab === "data") {
-      return <DataModule context={context} />;
+      return <DataModule context={context} refreshToken={dataRefreshToken} />;
     }
     if (activeTab === "method") {
-      return <MethodModule context={context} />;
+      return <MethodModule context={context} onJobSucceeded={onMethodJobSucceeded} />;
     }
     if (activeTab === "explorer") {
-      return <ExplorerModule context={context} />;
+      return <ExplorerModule context={context} refreshToken={dataRefreshToken} />;
     }
     if (activeTab === "agent") {
       return <AgentModule context={context} />;
@@ -138,7 +185,11 @@ function App() {
             {context?.dataset?.name || manifest?.dataset?.name || "dataset"}
           </div>
         </div>
-        <button type="button" className="cafe-refresh-btn" onClick={() => loadBootstrap()}>
+        <button
+          type="button"
+          className="cafe-refresh-btn"
+          onClick={() => loadBootstrap({}, { preserveActiveTab: true })}
+        >
           Refresh
         </button>
       </div>

@@ -12,9 +12,9 @@
   "defaultTab": "plot",
   "modules": [
     { "key": "plot", "enabled": true },
-    { "key": "data", "enabled": false },
-    { "key": "method", "enabled": false },
-    { "key": "explorer", "enabled": false },
+    { "key": "data", "enabled": true },
+    { "key": "method", "enabled": true },
+    { "key": "explorer", "enabled": true },
     { "key": "agent", "enabled": false }
   ]
 }

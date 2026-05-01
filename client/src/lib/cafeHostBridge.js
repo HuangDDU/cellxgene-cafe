@@ -1,5 +1,9 @@
 export function installCafeHostBridge(store, hostActions = {}) {
-  if (!store || typeof store.getState !== "function" || typeof store.subscribe !== "function") {
+  if (
+    !store ||
+    typeof store.getState !== "function" ||
+    typeof store.subscribe !== "function"
+  ) {
     return;
   }
 
@@ -7,7 +11,11 @@ export function installCafeHostBridge(store, hostActions = {}) {
 
   const buildHostState = () => {
     const state = store.getState() || {};
-    const layoutChoice = state.layoutChoice || { current: "", available: [], currentDimNames: [] };
+    const layoutChoice = state.layoutChoice || {
+      current: "",
+      available: [],
+      currentDimNames: [],
+    };
     const annoMatrix = state.annoMatrix || {};
 
     return {
@@ -16,7 +24,9 @@ export function installCafeHostBridge(store, hostActions = {}) {
         nObs: Number.isFinite(annoMatrix.nObs) ? annoMatrix.nObs : null,
         nVar: Number.isFinite(annoMatrix.nVar) ? annoMatrix.nVar : null,
         currentLayout: layoutChoice.current || "",
-        availableLayouts: Array.isArray(layoutChoice.available) ? layoutChoice.available : [],
+        availableLayouts: Array.isArray(layoutChoice.available)
+          ? layoutChoice.available
+          : [],
         currentDimNames: Array.isArray(layoutChoice.currentDimNames)
           ? layoutChoice.currentDimNames
           : [],
@@ -53,7 +63,10 @@ export function installCafeHostBridge(store, hostActions = {}) {
         return;
       }
 
-      if (action.type === "set layout choice" && typeof hostActions.layoutChoiceAction === "function") {
+      if (
+        action.type === "set layout choice" &&
+        typeof hostActions.layoutChoiceAction === "function"
+      ) {
         store.dispatch(hostActions.layoutChoiceAction(action.layoutChoice));
         notify();
       }

@@ -1,7 +1,13 @@
 import axios from "axios";
 
+let baseURL = "/api/cafe";
+if (typeof window !== "undefined" && window.location.port === "3000") {
+  const host = window.location.hostname || "localhost";
+  baseURL = `http://${host}:5005/api/cafe`;
+}
+
 const api = axios.create({
-  baseURL: "/api/cafe"
+  baseURL
 });
 
 export async function fetchManifest() {
@@ -29,7 +35,7 @@ export function buildStaticPlotUrl(params = {}) {
 
   const queryString = query.toString();
   if (!queryString) {
-    return "/api/cafe/plot/static";
+    return baseURL + "/plot/static";
   }
-  return `/api/cafe/plot/static?${queryString}`;
+  return `${baseURL}/plot/static?${queryString}`;
 }

@@ -8,7 +8,21 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # Reuse shared helpers (.env loading, python resolution, npm proxy passthrough).
 source "${SCRIPT_DIR}/common_env.sh"
 
+# Ensure host frontend dependencies exist before launching its dev server.
+ensure_host_client_deps() {
+  local root_dir="$1"
+
+  if [[ -d "${root_dir}/client/node_modules" && -f "${root_dir}/client/node_modules/chalk/package.json" ]]; then
+    return
+  fi
+
+  echo "[DEV] Install host frontend dependencies"
+  cd "${root_dir}/client"
+  run_npm install
+}
+
 # Ensure plugin frontend dependencies exist before running webpack build/watch.
+# if stuck in puppeteer downloading Chromium, try `PUPPETEER_SKIP_DOWNLOAD=true` to skip chrome download
 ensure_plugin_client_deps() {
   local root_dir="$1"
 
@@ -69,6 +83,7 @@ start_plugin_dev_server() {
   echo "$!"
 }
 
+# Patch backend template to load host frontend dev bundle from webpack-dev-server instead of static assets built by host Makefile.
 patch_backend_template_for_dev_bundle() {
   local host_template_file="$1"
   local client_port="$2"
@@ -77,54 +92,31 @@ patch_backend_template_for_dev_bundle() {
     return
   fi
 
-  python3 - <<'PY' "$host_template_file" "$client_port"
-from pathlib import Path
-import re
-import sys
+  local search='<script defer src="static/main-[^"]+\.js"></script><script defer src="obsolete\.js"></script><link href="static/main-[^"]+\.css" rel="stylesheet"></head>'
+  local replace='<script defer src="http://localhost:'"${client_port}"'/static/js/bundle.js"></script><link href="http://localhost:'"${client_port}"'/static/main.css" rel="stylesheet"></head>'
 
-template_file = Path(sys.argv[1])
-client_port = sys.argv[2]
-content = template_file.read_text(encoding="utf-8")
-
-replacement = (
-    f'<script defer src="http://localhost:{client_port}/static/js/bundle.js"></script>'
-    f'<link href="http://localhost:{client_port}/static/main.css" rel="stylesheet"></head>'
-)
-
-pattern = re.compile(
-    r'<script defer src="static/main-[^"]+\.js"></script>'
-    r'<script defer src="obsolete\.js"></script>'
-    r'<link href="static/main-[^"]+\.css" rel="stylesheet"></head>',
-    re.DOTALL,
-)
-
-updated = pattern.sub(replacement, content, count=1)
-if updated != content:
-    template_file.write_text(updated, encoding="utf-8")
-    print(f"[DEV] Patched backend template to use dev bundle: {template_file}")
-else:
-    print(f"[DEV] Backend template already points to dev bundle: {template_file}")
-PY
+  if grep -E -q "${search}" "${host_template_file}"; then
+    sed -i -E "s|${search}|${replace}|" "${host_template_file}"
+    echo "[DEV] Patched backend template to use dev bundle: ${host_template_file}"
+  else
+    echo "[DEV] Backend template already points to dev bundle: ${host_template_file}"
+  fi
 }
 
-# Return 1 if a TCP port is occupied, else 0.
-port_in_use() {
-  local port="$1"
-  python3 - <<'PY' "$port"
-import socket
-import sys
+# Patch host reducers to enable Redux DevTools Extension support in host frontend dev server.
+patch_host_redux_devtools() {
+  local root_dir="$1"
+  local host_reducers_file="${root_dir}/client/src/reducers/index.js"
 
-port = int(sys.argv[1])
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-try:
-    sock.bind(("127.0.0.1", port))
-    print("0")
-except OSError:
-    print("1")
-finally:
-    sock.close()
-PY
+  if [[ ! -f "${host_reducers_file}" ]]; then
+    return
+  fi
+
+  if ! grep -q "__REDUX_DEVTOOLS_EXTENSION_COMPOSE__" "${host_reducers_file}"; then
+    sed -i 's/import { createStore, applyMiddleware } from "redux";/import { createStore, applyMiddleware, compose } from "redux";/' "${host_reducers_file}"
+    sed -i '/const store = createStore(Reducer,/c\const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ ? window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__({ name: "cellxgene" }) : compose;\nconst store = createStore(Reducer, composeEnhancers(applyMiddleware(thunk, annoMatrixGC)));' "${host_reducers_file}"
+    echo "[DEV] Patched host Redux DevTools support: ${host_reducers_file}"
+  fi
 }
 
 # Ensure target port can be used by current dev session.
@@ -132,18 +124,16 @@ ensure_port_ready() {
   local port="$1"
   local force_kill="$2"
 
-  if [[ "$(port_in_use "${port}")" == "0" ]]; then
-    return
-  fi
+  if fuser -n tcp "${port}" >/dev/null 2>&1; then
+    if [[ "${force_kill}" == "1" ]]; then
+      echo "[DEV] Port ${port} is busy. Killing existing process because CELLXGENE_FORCE_KILL_PORT=1"
+      fuser -k "${port}/tcp" >/dev/null 2>&1 || true
+      return
+    fi
 
-  if [[ "${force_kill}" == "1" ]]; then
-    echo "[DEV] Port ${port} is busy. Killing existing process because CELLXGENE_FORCE_KILL_PORT=1"
-    fuser -k "${port}/tcp" >/dev/null 2>&1 || true
-    return
+    echo "[ERROR] Port ${port} is in use. Set CELLXGENE_FORCE_KILL_PORT=1 or choose another port." >&2
+    exit 1
   fi
-
-  echo "[ERROR] Port ${port} is in use. Set CELLXGENE_FORCE_KILL_PORT=1 or choose another port." >&2
-  exit 1
 }
 
 # Stop all processes persisted from the previous dev run.
@@ -167,6 +157,7 @@ dev_main() {
 
   # Runtime wiring.
   local cellxgene_source_root="${CELLXGENE_SOURCE_ROOT:-}"
+  local cellxgene_conda_env="${CELLXGENE_CONDA_ENV:-cellxgene_cafe}"
   local cellxgene_dataset="${CELLXGENE_DATASET:-}"
   local server_port="${CELLXGENE_PORT:-5005}"
   local client_port="${CXG_CLIENT_PORT:-3000}"
@@ -184,8 +175,18 @@ dev_main() {
   local pid_file="${ROOT_DIR}/log/dev.pids"
 
   if [[ -z "${cellxgene_source_root}" || ! -d "${cellxgene_source_root}" ]]; then
-    echo "[ERROR] CELLXGENE_SOURCE_ROOT is invalid: ${cellxgene_source_root}" >&2
-    exit 1
+    local default_target="${ROOT_DIR}/../cellxgene"
+    local target_dir="${cellxgene_source_root:-${default_target}}"
+    echo "[WARN] CELLXGENE_SOURCE_ROOT is missing or invalid: ${target_dir}" >&2
+    read -r -p "Do you want to clone the latest cellxgene repository from GitHub into ${target_dir}? [y/N] " response
+    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+      echo "[DEV] Cloning cellxgene repository..."
+      git clone https://github.com/chanzuckerberg/cellxgene.git "${target_dir}"
+      cellxgene_source_root="$(cd "${target_dir}" && pwd)"
+    else
+      echo "[ERROR] Cannot proceed without cellxgene source code. Exiting." >&2
+      exit 1
+    fi
   fi
 
   if [[ -z "${cellxgene_dataset}" || ! -f "${cellxgene_dataset}" ]]; then
@@ -252,22 +253,26 @@ dev_main() {
   python3 scripts/inject_server.py
   python3 scripts/inject_client.py
   patch_backend_template_for_dev_bundle "${cellxgene_source_root}/server/common/web/templates/index.html" "${client_port}"
+  patch_host_redux_devtools "${cellxgene_source_root}"
 
   # Keep plugin backend/bridge code hot-swappable in host source tree.
-  ln -sfn "${ROOT_DIR}/server/cafe_api.py" "${cellxgene_source_root}/server/cafe_api.py"
-  ln -sfn "${ROOT_DIR}/server/cafe_util.py" "${cellxgene_source_root}/server/cafe_util.py"
-  ln -sfn "${ROOT_DIR}/client/src/lib/cafeHostBridge.js" "${cellxgene_source_root}/client/src/cafeHostBridge.js"
+  cp "${ROOT_DIR}/server/cafe_api.py" "${cellxgene_source_root}/server/cafe_api.py"
+  cp "${ROOT_DIR}/server/cafe_util.py" "${cellxgene_source_root}/server/cafe_util.py"
+  cp "${ROOT_DIR}/client/src/lib/cafeHostBridge.js" "${cellxgene_source_root}/client/src/cafeHostBridge.js"
 
   # Keep a fallback static asset path in place for non-HMR installations.
   mkdir -p "${cellxgene_source_root}/server/common/web/static"
-  ln -sfn "${ROOT_DIR}/dist/cafe-plugin.js" "${cellxgene_source_root}/server/common/web/static/cafe-plugin.js"
+  cp -sfn "${ROOT_DIR}/dist/cafe-plugin.js" "${cellxgene_source_root}/server/common/web/static/cafe-plugin.js"
 
   # Launch host backend/frontend in background.
   echo "[DEV] Launch backend and frontend (background)"
 
+  ensure_host_client_deps "${cellxgene_source_root}"
+
   (
     cd "${cellxgene_source_root}"
-    make start-server
+    export PYTHONPATH="${cellxgene_source_root}"
+    conda run --live-stream -n "${cellxgene_conda_env}" make start-server # run backend in conda environment
   ) >> "${backend_log_file}" 2>&1 &
   local server_pid=$!
 

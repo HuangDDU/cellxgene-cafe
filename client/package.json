@@ -7,21 +7,22 @@
     "dev": "webpack serve --mode development --env hmr"
   },
   "dependencies": {
-    "axios": "^1.8.2",
+    "axios": "^1.15.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@pmmmwh/react-refresh-webpack-plugin": "^0.5.15",
     "@babel/core": "^7.26.0",
     "@babel/preset-env": "^7.26.0",
     "@babel/preset-react": "^7.25.9",
+    "@pmmmwh/react-refresh-webpack-plugin": "^0.5.15",
+    "axios": "^1.15.2",
     "babel-loader": "^9.2.1",
     "css-loader": "^7.1.2",
     "react-refresh": "^0.14.2",
     "style-loader": "^4.0.0",
     "webpack": "^5.96.1",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^5.1.0"
+    "webpack-dev-server": "^5.2.3"
   }
 }

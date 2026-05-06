@@ -63,13 +63,18 @@ export function installCafeHostBridge(store, hostActions = {}) {
         return;
       }
 
-      if (
-        action.type === "set layout choice" &&
-        typeof hostActions.layoutChoiceAction === "function"
-      ) {
-        store.dispatch(hostActions.layoutChoiceAction(action.layoutChoice));
+      if (action.type === "set layout choice") {
+        if (typeof hostActions.layoutChoiceAction === "function") {
+          store.dispatch(hostActions.layoutChoiceAction(action.layoutChoice));
+        } else {
+          store.dispatch({ type: "set layout choice", layoutChoice: action.layoutChoice });
+        }
         notify();
+        return;
       }
+
+      store.dispatch(action);
+      notify();
     },
   };
 

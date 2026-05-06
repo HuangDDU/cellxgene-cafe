@@ -1,22 +1,24 @@
+// This js file bridge is responsible for syncing state between the cafe plugin and the host cellxgene app.
+
 import cafeStore from "./cafeStore";
 import {
-  CAFE_LAYOUT_CHOICE_SET,
-  CAFE_TRAJECTORY_ANCHOR_SET,
-  CAFE_TRAJECTORY_CHOICE_SET,
-  CAFE_TRAJECTORY_EDGE_WIDTH_SET,
-  CAFE_TRAJECTORY_NODE_SIZE_SET,
-  CAFE_TRAJECTORY_TYPE_SET,
+  CELLXGENE_LAYOUT_CHOICE_SET,
+  CAFE_TRAJECTORY_NAME_SET,
   CAFE_TRAJECTORY_UPDATE,
   CAFE_TRAJECTORY_VISIBILITY_SET,
-} from "../reducers/cafe/actions";
-import { createDefaultCafeBridgeState } from "../reducers/cafe/selectors";
+  CAFE_TRAJECTORY_ANCHOR_SET,
+  CAFE_TRAJECTORY_TYPE_SET,
+  CAFE_TRAJECTORY_NODE_SIZE_SET,
+  CAFE_TRAJECTORY_EDGE_WIDTH_SET,
+} from "../reducers/actions";
+import { createDefaultCafeBridgeState } from "../reducers/selectors";
 
 function hasHostBridge() {
   const bridge = window.CafeHostBridge;
   return !!(bridge && typeof bridge.getState === "function");
 }
 
-function createBridgeState() {
+export function createBridgeState() {
   const localState = cafeStore.getState() || createDefaultCafeBridgeState();
   const hostState = hasHostBridge() ? window.CafeHostBridge.getState() : {};
 
@@ -25,9 +27,9 @@ function createBridgeState() {
     host: hostState?.host || {
       nObs: null,
       nVar: null,
-      currentLayout: localState.layoutChoice?.current || "",
-      availableLayouts: localState.layoutChoice?.available || [],
-      currentDimNames: localState.layoutChoice?.currentDimNames || [],
+      currentLayout: localState.cellxgene?.layoutChoice?.current || "",
+      availableLayouts: localState.cellxgene?.layoutChoice?.available || [],
+      currentDimNames: localState.cellxgene?.layoutChoice?.currentDimNames || [],
     },
   };
 }
@@ -39,13 +41,13 @@ function syncLayoutFromHost() {
 
   const hostState = window.CafeHostBridge.getState() || {};
   const nextLayout = hostState?.layoutChoice?.current || "";
-  const currentLayout = cafeStore.getState()?.layoutChoice?.current || "";
+  const currentLayout = cafeStore.getState()?.cellxgene?.layoutChoice?.current || "";
   if (!nextLayout || nextLayout === currentLayout) {
     return;
   }
 
   cafeStore.dispatch({
-    type: CAFE_LAYOUT_CHOICE_SET,
+    type: CELLXGENE_LAYOUT_CHOICE_SET,
     layoutChoice: nextLayout,
     currentDimNames: hostState?.layoutChoice?.currentDimNames || [],
   });
@@ -109,17 +111,18 @@ export function dispatchCafeAction(action) {
     return;
   }
 
-  if (action.type === CAFE_LAYOUT_CHOICE_SET) {
+  // Bidirectional sync: propagate plugin actions to host Redux
+  if (action.type === CELLXGENE_LAYOUT_CHOICE_SET) {
     window.CafeHostBridge.dispatch({
       type: "set layout choice",
       layoutChoice: action.layoutChoice,
     });
   }
 
-  if (action.type === CAFE_TRAJECTORY_CHOICE_SET) {
+  if (action.type === CAFE_TRAJECTORY_NAME_SET) {
     window.CafeHostBridge.dispatch({
       type: "cafe/trajectoryChoice/set",
-      trajectoryChoice: action.trajectoryChoice,
+      trajectoryChoice: action.trajectoryName,
       available: action.available,
     });
   }

@@ -1,19 +1,28 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 
-import App from "./App";
+import App from "./components/app";
+import { CafeAppProvider } from "./lib/appProvider";
 import "./styles.css";
 
 const roots = new Map();
 let hotAcceptRegistered = false;
 
 function render(root) {
-  root.render(<App />);
+  root.render(
+    <CafeAppProvider>
+      <App />
+    </CafeAppProvider>
+  );
 
   if (module.hot && !hotAcceptRegistered) {
     hotAcceptRegistered = true;
-    module.hot.accept("./App", () => {
-      root.render(<App />);
+    module.hot.accept("./components/app", () => {
+      root.render(
+        <CafeAppProvider>
+          <App />
+        </CafeAppProvider>
+      );
     });
   }
 }

@@ -28,7 +28,7 @@ module.exports = (env = {}, argv = {}) => {
     module: {
       rules: [
         {
-          test: /\.(js|jsx)$/, 
+          test: /\.(js|jsx)$/,
           exclude: /node_modules/,
           use: {
             loader: "babel-loader",
@@ -47,14 +47,10 @@ module.exports = (env = {}, argv = {}) => {
     resolve: {
       extensions: [".js", ".jsx"],
     },
-  };
-
-  if (enableHmr) {
-    config.plugins = [new ReactRefreshWebpackPlugin({ overlay: false })];
-    config.devServer = {
+    devServer: {
       host: "0.0.0.0",
       port: devServerPort,
-      hot: true,
+      hot: enableHmr,
       liveReload: false,
       allowedHosts: "all",
       headers: {
@@ -67,7 +63,11 @@ module.exports = (env = {}, argv = {}) => {
       devMiddleware: {
         publicPath: "/",
       },
-    };
+    },
+  };
+
+  if (enableHmr) {
+    config.plugins = [new ReactRefreshWebpackPlugin({ overlay: false })];
   }
 
   return config;

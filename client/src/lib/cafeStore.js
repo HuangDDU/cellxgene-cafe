@@ -1,15 +1,6 @@
-import {
-  CAFE_LAYOUT_CHOICE_SET,
-  CAFE_TRAJECTORY_ANCHOR_SET,
-  CAFE_TRAJECTORY_CHOICE_BOOTSTRAP,
-  CAFE_TRAJECTORY_CHOICE_SET,
-  CAFE_TRAJECTORY_EDGE_WIDTH_SET,
-  CAFE_TRAJECTORY_NODE_SIZE_SET,
-  CAFE_TRAJECTORY_TYPE_SET,
-  CAFE_TRAJECTORY_UPDATE,
-  CAFE_TRAJECTORY_VISIBILITY_SET,
-} from "../reducers/cafe/actions";
-import { createDefaultCafeBridgeState } from "../reducers/cafe/selectors";
+import cellxgeneReducer from "../reducers/cellxgene";
+import trajectoryReducer from "../reducers/trajectory";
+import { createDefaultCafeBridgeState } from "../reducers/selectors";
 
 function getReduxDevToolsExtension() {
   if (typeof window === "undefined") {
@@ -46,8 +37,7 @@ function getReduxDevToolsExtension() {
 
 function buildSnapshot(state) {
   return {
-    layoutChoice: state.layoutChoice,
-    trajectoryChoice: state.trajectoryChoice,
+    cellxgene: state.cellxgene,
     trajectory: state.trajectory,
   };
 }
@@ -60,7 +50,7 @@ function sanitizeAction(action) {
   const sanitized = { type: action.type || "<anonymous-action>" };
   [
     "layoutChoice",
-    "trajectoryChoice",
+    "trajectoryName",
     "showTrajectory",
     "anchorTrajectory",
     "trajectoryType",
@@ -83,127 +73,12 @@ function sanitizeAction(action) {
   return sanitized;
 }
 
-function reduceLayoutChoice(state, action) {
-  switch (action.type) {
-    case CAFE_LAYOUT_CHOICE_SET:
-      return {
-        ...state,
-        layoutChoice: {
-          ...state.layoutChoice,
-          current: action.layoutChoice ?? state.layoutChoice.current,
-          currentDimNames: action.currentDimNames ?? state.layoutChoice.currentDimNames,
-        },
-      };
-    default:
-      return state;
-  }
-}
-
-function reduceTrajectoryChoice(state, action) {
-  switch (action.type) {
-    case CAFE_TRAJECTORY_CHOICE_BOOTSTRAP:
-      return {
-        ...state,
-        trajectoryChoice: {
-          ...state.trajectoryChoice,
-          ...(action.payload || {}),
-        },
-      };
-    case CAFE_TRAJECTORY_CHOICE_SET:
-      return {
-        ...state,
-        trajectoryChoice: {
-          ...state.trajectoryChoice,
-          current: action.trajectoryChoice ?? state.trajectoryChoice.current,
-          available: Array.isArray(action.available)
-            ? action.available
-            : state.trajectoryChoice.available,
-        },
-      };
-    default:
-      return state;
-  }
-}
-
-function reduceTrajectory(state, action) {
-  const currentTrajectory = state.trajectory || createDefaultCafeBridgeState().trajectory;
-
-  switch (action.type) {
-    case CAFE_TRAJECTORY_UPDATE: {
-      const patch = action.patch || {};
-      const nextTrajectory = { ...currentTrajectory };
-
-      if (patch.trajectory && typeof patch.trajectory === "object") {
-        Object.assign(nextTrajectory, patch.trajectory);
-      }
-
-      [
-        "showTrajectory",
-        "anchorTrajectory",
-        "trajectoryType",
-        "nodeSize",
-        "edgeWidth",
-      ].forEach((key) => {
-        if (Object.prototype.hasOwnProperty.call(patch, key)) {
-          nextTrajectory[key] = patch[key];
-        }
-      });
-
-      return {
-        ...state,
-        trajectory: nextTrajectory,
-      };
-    }
-    case CAFE_TRAJECTORY_VISIBILITY_SET:
-      return {
-        ...state,
-        trajectory: {
-          ...currentTrajectory,
-          showTrajectory: action.showTrajectory ?? currentTrajectory.showTrajectory,
-        },
-      };
-    case CAFE_TRAJECTORY_ANCHOR_SET:
-      return {
-        ...state,
-        trajectory: {
-          ...currentTrajectory,
-          anchorTrajectory: action.anchorTrajectory ?? currentTrajectory.anchorTrajectory,
-        },
-      };
-    case CAFE_TRAJECTORY_TYPE_SET:
-      return {
-        ...state,
-        trajectory: {
-          ...currentTrajectory,
-          trajectoryType: action.trajectoryType ?? currentTrajectory.trajectoryType,
-        },
-      };
-    case CAFE_TRAJECTORY_NODE_SIZE_SET:
-      return {
-        ...state,
-        trajectory: {
-          ...currentTrajectory,
-          nodeSize: action.nodeSize ?? currentTrajectory.nodeSize,
-        },
-      };
-    case CAFE_TRAJECTORY_EDGE_WIDTH_SET:
-      return {
-        ...state,
-        trajectory: {
-          ...currentTrajectory,
-          edgeWidth: action.edgeWidth ?? currentTrajectory.edgeWidth,
-        },
-      };
-    default:
-      return state;
-  }
-}
-
-function reducer(state, action) {
-  let nextState = reduceLayoutChoice(state, action);
-  nextState = reduceTrajectoryChoice(nextState, action);
-  nextState = reduceTrajectory(nextState, action);
-  return nextState;
+function rootReducer(state, action) {
+  return {
+    ...state,
+    cellxgene: cellxgeneReducer(state.cellxgene, action),
+    trajectory: trajectoryReducer(state.trajectory, action),
+  };
 }
 
 function createStore() {
@@ -261,7 +136,7 @@ function createStore() {
       return action;
     }
 
-    state = reducer(state, action);
+    state = rootReducer(state, action);
     tryConnectDevTools();
     notify(action);
     return action;

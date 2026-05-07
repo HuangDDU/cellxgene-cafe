@@ -8,11 +8,13 @@ Read the architecture guide first:
 
 ## Current Status
 
-- Plot module: implemented (trajectory selector, show/anchor controls, trajectory type, node/edge sliders, preview, benchmark panel).
-- Data module: placeholder.
-- Method module: placeholder (job API endpoints are reserved).
-- Explorer module: baseline implemented (benchmark view).
-- Agent module: placeholder.
+- **Plot**: implemented — trajectory/layout selector, show/anchor controls, Plot Mode (milestone/waypoint), node size / edge width sliders, trajectory preview (SVG), static plot rendering.
+- **Data**: implemented — dataset overview, FateAnnData structure summary, trajectories table, embeddings list, color mappings, source info, H5AD/trajectory package export links.
+- **Method**: implemented — method catalog browser, parameter forms with type validation, job submission, status polling, cancel, logs, result retrieval.
+- **Explorer**: implemented — benchmark table (search/sort), metric comparison (bar charts), driver genes table, gene trend search (sparklines + multi-trajectory comparison), integration preview.
+- **Agent**: placeholder.
+
+See [CLAUDE.md](./CLAUDE.md) for architecture details, Redux patterns, and development commands.
 
 ## Directory Responsibilities
 

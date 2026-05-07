@@ -1,9 +1,5 @@
 export function installCafeHostBridge(store, hostActions = {}) {
-  if (
-    !store ||
-    typeof store.getState !== "function" ||
-    typeof store.subscribe !== "function"
-  ) {
+  if (!store || typeof store.getState !== "function" || typeof store.subscribe !== "function") {
     return;
   }
 
@@ -24,9 +20,7 @@ export function installCafeHostBridge(store, hostActions = {}) {
         nObs: Number.isFinite(annoMatrix.nObs) ? annoMatrix.nObs : null,
         nVar: Number.isFinite(annoMatrix.nVar) ? annoMatrix.nVar : null,
         currentLayout: layoutChoice.current || "",
-        availableLayouts: Array.isArray(layoutChoice.available)
-          ? layoutChoice.available
-          : [],
+        availableLayouts: Array.isArray(layoutChoice.available) ? layoutChoice.available : [],
         currentDimNames: Array.isArray(layoutChoice.currentDimNames)
           ? layoutChoice.currentDimNames
           : [],

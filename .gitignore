@@ -24,6 +24,7 @@ tmp/
 venv/
 .env
 .env.*
+!.env.example
 
 # Notebook cache
 .ipynb_checkpoints/
@@ -41,4 +42,9 @@ venv/
 Thumbs.db
 
 # log
-log
+log/
+logs/
+
+# Test coverage
+coverage/
+.nyc_output/

@@ -55,7 +55,9 @@ class PreviewNetwork extends React.Component {
     const bounds = getBounds(nodes);
 
     if (!nodes.length) {
-      return <div className="cafe-note">No preview graph available for this trajectory/layout.</div>;
+      return (
+        <div className="cafe-note">No preview graph available for this trajectory/layout.</div>
+      );
     }
 
     return (
@@ -67,7 +69,7 @@ class PreviewNetwork extends React.Component {
           const pathD = points
             .map(
               (point, idx) =>
-                `${idx === 0 ? "M" : "L"} ${scaleX(point.x, bounds)} ${scaleY(point.y, bounds)}`
+                `${idx === 0 ? "M" : "L"} ${scaleX(point.x, bounds)} ${scaleY(point.y, bounds)}`,
             )
             .join(" ");
           return (

@@ -55,8 +55,15 @@ export default class App extends React.Component {
 
   render() {
     const {
-      manifest, context, activeTab, loading, error,
-      modules, setActiveTab, loadBootstrap, reloadContext,
+      manifest,
+      context,
+      activeTab,
+      loading,
+      error,
+      modules,
+      setActiveTab,
+      loadBootstrap,
+      reloadContext,
     } = this.context;
 
     if (loading) {
@@ -69,18 +76,10 @@ export default class App extends React.Component {
 
         {error ? <div className="cafe-error">{error}</div> : null}
 
-        <TabNav
-          items={modules}
-          activeKey={activeTab}
-          onChange={setActiveTab}
-        />
+        <TabNav items={modules} activeKey={activeTab} onChange={setActiveTab} />
 
         <div className="cafe-body">
-          <ModuleDispatcher
-            activeTab={activeTab}
-            context={context}
-            reloadContext={reloadContext}
-          />
+          <ModuleDispatcher activeTab={activeTab} context={context} reloadContext={reloadContext} />
         </div>
       </div>
     );

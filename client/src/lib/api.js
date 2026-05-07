@@ -7,7 +7,7 @@ if (typeof window !== "undefined" && window.location.port === "3000") {
 }
 
 const api = axios.create({
-  baseURL
+  baseURL,
 });
 
 export async function fetchManifest() {
@@ -75,7 +75,7 @@ export function buildStaticPlotUrl(params = {}) {
 
   const queryString = query.toString();
   if (!queryString) {
-    return baseURL + "/plot/static";
+    return `${baseURL}/plot/static`;
   }
   return `${baseURL}/plot/static?${queryString}`;
 }

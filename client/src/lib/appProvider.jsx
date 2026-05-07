@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import { fetchContext, fetchManifest } from "./api";
 import { getBridgeState, subscribeBridgeState, createBridgeState } from "./hostBridge";
 

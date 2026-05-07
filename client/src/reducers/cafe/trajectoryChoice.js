@@ -7,16 +7,14 @@ function bestDefaultTrajectory(available) {
 }
 
 function extractAvailableTrajectories(annoMatrix) {
-  const fromCafeUns = Object.keys(
-    annoMatrix?.uns?.cafe?.trajectory_history_dict || {}
-  ).sort();
+  const fromCafeUns = Object.keys(annoMatrix?.uns?.cafe?.trajectory_history_dict || {}).sort();
 
   if (fromCafeUns.length > 0) {
     return fromCafeUns;
   }
 
   return Object.keys(
-    annoMatrix?.schema?.annotations?.obsByName?.milestone?.categories || {}
+    annoMatrix?.schema?.annotations?.obsByName?.milestone?.categories || {},
   ).sort();
 }
 

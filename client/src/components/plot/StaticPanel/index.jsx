@@ -23,10 +23,8 @@ export default class StaticPanel extends React.Component {
     const trajectoryState = bridgeState?.trajectory || {};
     const layoutChoice = bridgeState?.cellxgene?.layoutChoice || {};
 
-    const currentTrajectory =
-      trajectoryState.trajectoryName || context?.current?.trajectory || "";
-    const currentLayout =
-      layoutChoice.current || context?.current?.layout || "";
+    const currentTrajectory = trajectoryState.trajectoryName || context?.current?.trajectory || "";
+    const currentLayout = layoutChoice.current || context?.current?.layout || "";
 
     const staticImageUrl = buildStaticPlotUrl({
       view: staticView,
@@ -39,8 +37,8 @@ export default class StaticPanel extends React.Component {
       <div className="cafe-card cafe-static-card">
         <h4>Static</h4>
         <div className="cafe-note cafe-static-note">
-          后端分别调用 cafe.plot.plot_trajectory / cafe.plot.plot_graph /
-          cafe.plot.plot_stream 并返回图片。
+          后端分别调用 cafe.plot.plot_trajectory / cafe.plot.plot_graph / cafe.plot.plot_stream
+          并返回图片。
         </div>
 
         <div className="cafe-switch-row cafe-static-switches">

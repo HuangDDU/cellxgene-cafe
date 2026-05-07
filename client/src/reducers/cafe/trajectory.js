@@ -19,13 +19,7 @@ function applyPatch(state, patch) {
     Object.assign(next, patch.trajectory);
   }
 
-  const keys = [
-    "showTrajectory",
-    "anchorTrajectory",
-    "trajectoryType",
-    "nodeSize",
-    "edgeWidth",
-  ];
+  const keys = ["showTrajectory", "anchorTrajectory", "trajectoryType", "nodeSize", "edgeWidth"];
 
   keys.forEach((key) => {
     if (Object.prototype.hasOwnProperty.call(patch, key)) {

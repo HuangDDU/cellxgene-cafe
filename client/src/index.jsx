@@ -12,7 +12,7 @@ function render(root) {
   root.render(
     <CafeAppProvider>
       <App />
-    </CafeAppProvider>
+    </CafeAppProvider>,
   );
 
   if (module.hot && !hotAcceptRegistered) {
@@ -21,7 +21,7 @@ function render(root) {
       root.render(
         <CafeAppProvider>
           <App />
-        </CafeAppProvider>
+        </CafeAppProvider>,
       );
     });
   }
@@ -55,7 +55,7 @@ function unmount(containerId) {
 window.CafePlugin = {
   mount,
   unmount,
-  version: "0.1.0"
+  version: "0.1.0",
 };
 
 window.mountCafeApp = mount;

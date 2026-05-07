@@ -21,10 +21,8 @@ export default class TrajectorySetting extends React.Component {
     const trajectoryState = bridgeState?.trajectory || {};
     const layoutChoice = bridgeState?.cellxgene?.layoutChoice || {};
 
-    const currentTrajectory =
-      trajectoryState.trajectoryName || context?.current?.trajectory || "";
-    const currentLayout =
-      layoutChoice.current || context?.current?.layout || "";
+    const currentTrajectory = trajectoryState.trajectoryName || context?.current?.trajectory || "";
+    const currentLayout = layoutChoice.current || context?.current?.layout || "";
     const trajectoryOptions = context?.trajectories || [];
     const layoutOptions = context?.layouts || [];
 
@@ -40,7 +38,9 @@ export default class TrajectorySetting extends React.Component {
               onChange={(e) => dispatchCafeAction(setCafeTrajectoryName(e.target.value))}
             >
               {trajectoryOptions.map((item) => (
-                <option key={item} value={item}>{item}</option>
+                <option key={item} value={item}>
+                  {item}
+                </option>
               ))}
             </select>
           </div>
@@ -53,7 +53,9 @@ export default class TrajectorySetting extends React.Component {
               onChange={(e) => dispatchCafeAction(setCellxgeneLayoutChoice(e.target.value))}
             >
               {layoutOptions.map((item) => (
-                <option key={item} value={item}>{item}</option>
+                <option key={item} value={item}>
+                  {item}
+                </option>
               ))}
             </select>
           </div>
@@ -91,9 +93,13 @@ export default class TrajectorySetting extends React.Component {
             <input
               id="trajectory-node-size"
               type="range"
-              min="0" max="10" step="0.1"
+              min="0"
+              max="10"
+              step="0.1"
               value={trajectoryState.nodeSize ?? 2.5}
-              onChange={(e) => dispatchCafeAction(setCafeTrajectoryNodeSize(Number(e.target.value)))}
+              onChange={(e) =>
+                dispatchCafeAction(setCafeTrajectoryNodeSize(Number(e.target.value)))
+              }
             />
             <span className="cafe-dynamics-slider-value">
               {Number(trajectoryState.nodeSize ?? 2.5).toFixed(1)}
@@ -105,9 +111,13 @@ export default class TrajectorySetting extends React.Component {
             <input
               id="trajectory-edge-width"
               type="range"
-              min="0" max="10" step="0.1"
+              min="0"
+              max="10"
+              step="0.1"
               value={trajectoryState.edgeWidth ?? 1}
-              onChange={(e) => dispatchCafeAction(setCafeTrajectoryEdgeWidth(Number(e.target.value)))}
+              onChange={(e) =>
+                dispatchCafeAction(setCafeTrajectoryEdgeWidth(Number(e.target.value)))
+              }
             />
             <span className="cafe-dynamics-slider-value">
               {Number(trajectoryState.edgeWidth ?? 1).toFixed(1)}

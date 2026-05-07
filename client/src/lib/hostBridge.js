@@ -128,15 +128,24 @@ export function dispatchCafeAction(action) {
   }
 
   if (action.type === CAFE_TRAJECTORY_VISIBILITY_SET) {
-    window.CafeHostBridge.dispatch({ type: "cafe/trajectory/show", showTrajectory: action.showTrajectory });
+    window.CafeHostBridge.dispatch({
+      type: "cafe/trajectory/show",
+      showTrajectory: action.showTrajectory,
+    });
   }
 
   if (action.type === CAFE_TRAJECTORY_ANCHOR_SET) {
-    window.CafeHostBridge.dispatch({ type: "cafe/trajectory/anchor", anchorTrajectory: action.anchorTrajectory });
+    window.CafeHostBridge.dispatch({
+      type: "cafe/trajectory/anchor",
+      anchorTrajectory: action.anchorTrajectory,
+    });
   }
 
   if (action.type === CAFE_TRAJECTORY_TYPE_SET) {
-    window.CafeHostBridge.dispatch({ type: "cafe/trajectory/type", trajectoryType: action.trajectoryType });
+    window.CafeHostBridge.dispatch({
+      type: "cafe/trajectory/type",
+      trajectoryType: action.trajectoryType,
+    });
   }
 
   if (action.type === CAFE_TRAJECTORY_NODE_SIZE_SET) {
@@ -144,7 +153,10 @@ export function dispatchCafeAction(action) {
   }
 
   if (action.type === CAFE_TRAJECTORY_EDGE_WIDTH_SET) {
-    window.CafeHostBridge.dispatch({ type: "cafe/trajectory/edgeWidth", edgeWidth: action.edgeWidth });
+    window.CafeHostBridge.dispatch({
+      type: "cafe/trajectory/edgeWidth",
+      edgeWidth: action.edgeWidth,
+    });
   }
 
   if (action.type === CAFE_TRAJECTORY_UPDATE) {

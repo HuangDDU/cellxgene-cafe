@@ -4,8 +4,6 @@ module.exports = {
   testPathIgnorePatterns: ["/node_modules/", "/__mocks__/"],
   moduleNameMapper: {
     "\\.(css|less)$": "identity-obj-proxy",
-    "^../../lib/api$": "<rootDir>/__tests__/__mocks__/api.js",
-    "^../../../lib/api$": "<rootDir>/__tests__/__mocks__/api.js",
   },
   transform: {
     "^.+\\.(js|jsx)$": "babel-jest",

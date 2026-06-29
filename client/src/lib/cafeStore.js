@@ -1,4 +1,5 @@
 import cellxgeneReducer from "../reducers/cellxgene";
+import contextReducer from "../reducers/context";
 import trajectoryReducer from "../reducers/trajectory";
 import { createDefaultCafeBridgeState } from "../reducers/selectors";
 
@@ -38,6 +39,7 @@ function getReduxDevToolsExtension() {
 function buildSnapshot(state) {
   return {
     cellxgene: state.cellxgene,
+    context: state.context,
     trajectory: state.trajectory,
   };
 }
@@ -77,6 +79,7 @@ function rootReducer(state, action) {
   return {
     ...state,
     cellxgene: cellxgeneReducer(state.cellxgene, action),
+    context: contextReducer(state.context, action),
     trajectory: trajectoryReducer(state.trajectory, action),
   };
 }

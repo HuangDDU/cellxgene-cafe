@@ -1,137 +1,61 @@
 import React from "react";
-
-import { AppContext } from "../../../lib/appProvider";
+import { connect } from "react-redux";
 
 import "./index.css";
 
-const WIDTH = 300;
-const HEIGHT = 260;
-const PAD = 16;
-
-function getNodeById(nodes) {
-  const map = {};
-  nodes.forEach((node) => {
-    map[node.id] = node;
-  });
-  return map;
+function scaleCoords(nodes, width, height, pad) {
+  if (!nodes.length) return { sx: (x) => x, sy: (y) => y };
+  const xs = nodes.map((n) => Number(n.x || 0)), ys = nodes.map((n) => Number(n.y || 0));
+  const minX = Math.min(...xs), maxX = Math.max(...xs), xSpan = (maxX - minX) || 1;
+  const minY = Math.min(...ys), maxY = Math.max(...ys), ySpan = (maxY - minY) || 1;
+  return { sx: (x) => pad + ((Number(x || 0) - minX) / xSpan) * (width - pad * 2), sy: (y) => height - pad - ((Number(y || 0) - minY) / ySpan) * (height - pad * 2) };
 }
 
-function getBounds(nodes) {
-  if (!nodes.length) {
-    return { minX: 0, maxX: 1, minY: 0, maxY: 1 };
-  }
-  const xs = nodes.map((n) => Number(n.x || 0));
-  const ys = nodes.map((n) => Number(n.y || 0));
-  return {
-    minX: Math.min(...xs),
-    maxX: Math.max(...xs),
-    minY: Math.min(...ys),
-    maxY: Math.max(...ys),
-  };
+function MilestoneSVG({ preview, width, height, nodeSize, edgeWidth }) {
+  const nodes = preview?.nodes || [], edges = preview?.edges || [];
+  if (!nodes.length) return <div className="cafe-note">No milestone data.</div>;
+  const pad = 16, { sx, sy } = scaleCoords(nodes, width, height, pad);
+  const nodeById = {}; nodes.forEach((n) => { nodeById[String(n.id)] = n; });
+  const r = Math.max(3, 5 * nodeSize);
+  return (
+    <svg width={width} height={height} style={{ background: "#f8fbff", border: "1px solid #d8e1ec", borderRadius: "4px" }}>
+      {edges.map((e) => { const src = nodeById[e.source], tgt = nodeById[e.target]; if (!src || !tgt) return null; return <line key={String(e.id || `${e.source}_${e.target}`)} x1={sx(src.x)} y1={sy(src.y)} x2={sx(tgt.x)} y2={sy(tgt.y)} stroke="#4a6a8a" strokeWidth={Math.max(1, edgeWidth * 1.5)} opacity={0.85} />; })}
+      {nodes.map((n) => (<g key={String(n.id)}><circle cx={sx(n.x)} cy={sy(n.y)} r={r} fill={n.color || "#7eb5df"} stroke="#1f3d5d" strokeWidth={1.2} /><text x={sx(n.x) + r + 3} y={sy(n.y) - r - 2} fontSize={Math.max(8, r * 1.6)} fill="#2f4d6f">{n.label || n.id}</text></g>))}
+    </svg>
+  );
 }
 
-function scaleX(value, bounds) {
-  const range = bounds.maxX - bounds.minX || 1;
-  return PAD + ((Number(value || 0) - bounds.minX) / range) * (WIDTH - PAD * 2);
+function WaypointSVG({ preview, width, height, nodeSize, edgeWidth }) {
+  const nodes = preview?.nodes || [], segments = preview?.waypointSegments || {};
+  if (!nodes.length && !Object.keys(segments).length) return <div className="cafe-note">No waypoint data.</div>;
+  const allPts = nodes.length ? nodes : Object.values(segments).flatMap((pts) => (pts || []));
+  const pad = 16, { sx, sy } = scaleCoords(allPts, width, height, pad);
+  const r = Math.max(3, 5 * nodeSize), sw = Math.max(1, edgeWidth * 1.2), ms = 0.8;
+  return (
+    <svg width={width} height={height} style={{ background: "#f8fbff", border: "1px solid #d8e1ec", borderRadius: "4px" }}>
+      <defs><marker id="wp-arrow" markerWidth={6 * ms} markerHeight={4 * ms} refX={6 * ms} refY={2 * ms} orient="auto"><path d={`M0,0 L${6 * ms},${2 * ms} L0,${4 * ms} Z`} fill="#333" /></marker></defs>
+      {Object.entries(segments).map(([groupId, pts]) => { if (!pts || pts.length < 2) return null; const d = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${sx(p.x).toFixed(1)} ${sy(p.y).toFixed(1)}`).join(" "), end = pts.length - 1; return (<g key={groupId}><path d={d} fill="none" stroke="#556677" strokeWidth={sw} /><path d={`M ${sx(pts[end].x).toFixed(1)} ${sy(pts[end].y).toFixed(1)} L ${sx(pts[end - 1].x).toFixed(1)} ${sy(pts[end - 1].y).toFixed(1)}`} fill="none" stroke="#333" strokeWidth={sw} markerEnd="url(#wp-arrow)" /></g>); })}
+      {nodes.map((n) => (<g key={String(n.id)}><circle cx={sx(n.x)} cy={sy(n.y)} r={r} fill={n.color || "#7eb5df"} stroke="#1f3d5d" strokeWidth={1.2} /><text x={sx(n.x) + r + 3} y={sy(n.y) - r - 2} fontSize={Math.max(8, r * 1.6)} fill="#2f4d6f">{n.label || n.id}</text></g>))}
+    </svg>
+  );
 }
 
-function scaleY(value, bounds) {
-  const range = bounds.maxY - bounds.minY || 1;
-  const normalized = (Number(value || 0) - bounds.minY) / range;
-  return HEIGHT - PAD - normalized * (HEIGHT - PAD * 2);
-}
-
-// TODO: Cytoscape preview, mode: graph, trajectory, stream
-class PreviewNetwork extends React.Component {
-  static contextType = AppContext;
-
-  render() {
-    const { context } = this.context;
-    const preview = context?.plot?.preview || {};
-    const nodes = preview.nodes || [];
-    const edges = preview.edges || [];
-    const waypointSegments = preview.waypointSegments || {};
-    const nodeById = getNodeById(nodes);
-    const bounds = getBounds(nodes);
-
-    if (!nodes.length) {
-      return (
-        <div className="cafe-note">No preview graph available for this trajectory/layout.</div>
-      );
-    }
-
-    return (
-      <svg width={WIDTH} height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
-        <rect x="0" y="0" width={WIDTH} height={HEIGHT} fill="#fbfdff" stroke="#d7e0eb" />
-
-        {Object.entries(waypointSegments).map(([groupId, points]) => {
-          if (!points || points.length < 2) return null;
-          const pathD = points
-            .map(
-              (point, idx) =>
-                `${idx === 0 ? "M" : "L"} ${scaleX(point.x, bounds)} ${scaleY(point.y, bounds)}`,
-            )
-            .join(" ");
-          return (
-            <path
-              key={`segment-${groupId}`}
-              d={pathD}
-              fill="none"
-              stroke="#6f7f8d"
-              strokeWidth="1.4"
-              strokeDasharray="3 2"
-              opacity="0.8"
-            />
-          );
-        })}
-
-        {edges.map((edge) => {
-          const source = nodeById[edge.source];
-          const target = nodeById[edge.target];
-          if (!source || !target) return null;
-          return (
-            <line
-              key={`edge-${edge.id}`}
-              x1={scaleX(source.x, bounds)}
-              y1={scaleY(source.y, bounds)}
-              x2={scaleX(target.x, bounds)}
-              y2={scaleY(target.y, bounds)}
-              stroke="#2b2b2b"
-              strokeWidth="2"
-            />
-          );
-        })}
-
-        {nodes.map((node) => (
-          <g key={`node-${node.id}`}>
-            <circle
-              cx={scaleX(node.x, bounds)}
-              cy={scaleY(node.y, bounds)}
-              r="5"
-              fill={node.color || "#9aa7b0"}
-              stroke="#213245"
-            />
-            <text
-              x={scaleX(node.x, bounds) + 7}
-              y={scaleY(node.y, bounds) - 7}
-              fontSize="10"
-              fill="#2f4d6f"
-            >
-              {node.label}
-            </text>
-          </g>
-        ))}
-      </svg>
-    );
-  }
-}
-
+@connect((state) => ({
+  preview: state.trajectory?.preview || {},
+  trajectoryType: state.trajectory?.trajectoryType || "milestone",
+  nodeSize: Number(state.trajectory?.nodeSize ?? 2.5),
+  edgeWidth: Number(state.trajectory?.edgeWidth ?? 1),
+}))
 export default class TrajectoryPreview extends React.Component {
   render() {
+    const { preview, trajectoryType, nodeSize, edgeWidth } = this.props;
+    const nodes = preview?.nodes || [], W = 340, H = 280;
     return (
       <div className="cafe-dynamics-preview-panel">
         <h4 className="cafe-subsection-title">Trajectory Preview</h4>
-        <PreviewNetwork />
+        {!nodes.length ? <div className="cafe-note">No preview data for current trajectory/layout.</div>
+          : trajectoryType === "waypoint" ? <WaypointSVG preview={preview} width={W} height={H} nodeSize={nodeSize} edgeWidth={edgeWidth} />
+          : <MilestoneSVG preview={preview} width={W} height={H} nodeSize={nodeSize} edgeWidth={edgeWidth} />}
       </div>
     );
   }

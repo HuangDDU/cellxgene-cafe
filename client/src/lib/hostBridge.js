@@ -107,59 +107,46 @@ export function dispatchCafeAction(action) {
 
   cafeStore.dispatch(action);
 
-  if (!hasHostBridge()) {
+  if (!hasHostBridge() || typeof window.CafeHostBridge.dispatch !== "function") {
     return;
   }
 
+  const bridge = window.CafeHostBridge;
+
+  const safeDispatch = (payload) => {
+    try { bridge.dispatch(payload); } catch (e) { /* ignore */ }
+  };
+
   // Bidirectional sync: propagate plugin actions to host Redux
   if (action.type === CELLXGENE_LAYOUT_CHOICE_SET) {
-    window.CafeHostBridge.dispatch({
-      type: "set layout choice",
-      layoutChoice: action.layoutChoice,
-    });
+    safeDispatch({ type: "set layout choice", layoutChoice: action.layoutChoice });
   }
 
   if (action.type === CAFE_TRAJECTORY_NAME_SET) {
-    window.CafeHostBridge.dispatch({
-      type: "cafe/trajectoryChoice/set",
-      trajectoryChoice: action.trajectoryName,
-      available: action.available,
-    });
+    safeDispatch({ type: "cafe/trajectoryChoice/set", trajectoryChoice: action.trajectoryName, available: action.available });
   }
 
   if (action.type === CAFE_TRAJECTORY_VISIBILITY_SET) {
-    window.CafeHostBridge.dispatch({
-      type: "cafe/trajectory/show",
-      showTrajectory: action.showTrajectory,
-    });
+    safeDispatch({ type: "cafe/trajectory/show", showTrajectory: action.showTrajectory });
   }
 
   if (action.type === CAFE_TRAJECTORY_ANCHOR_SET) {
-    window.CafeHostBridge.dispatch({
-      type: "cafe/trajectory/anchor",
-      anchorTrajectory: action.anchorTrajectory,
-    });
+    safeDispatch({ type: "cafe/trajectory/anchor", anchorTrajectory: action.anchorTrajectory });
   }
 
   if (action.type === CAFE_TRAJECTORY_TYPE_SET) {
-    window.CafeHostBridge.dispatch({
-      type: "cafe/trajectory/type",
-      trajectoryType: action.trajectoryType,
-    });
+    safeDispatch({ type: "cafe/trajectory/type", trajectoryType: action.trajectoryType });
   }
 
   if (action.type === CAFE_TRAJECTORY_NODE_SIZE_SET) {
-    window.CafeHostBridge.dispatch({ type: "cafe/trajectory/nodeSize", nodeSize: action.nodeSize });
+    safeDispatch({ type: "cafe/trajectory/nodeSize", nodeSize: action.nodeSize });
   }
 
   if (action.type === CAFE_TRAJECTORY_EDGE_WIDTH_SET) {
-    window.CafeHostBridge.dispatch({
-      type: "cafe/trajectory/edgeWidth",
-      edgeWidth: action.edgeWidth,
-    });
+    safeDispatch({ type: "cafe/trajectory/edgeWidth", edgeWidth: action.edgeWidth });
   }
 
   if (action.type === CAFE_TRAJECTORY_UPDATE) {
-    window.CafeHostBridge.dispatch({ type: "cafe/trajectory/update", patch: action.patch });
+    safeDispatch({ type: "cafe/trajectory/update", patch: action.patch });
   }
 }

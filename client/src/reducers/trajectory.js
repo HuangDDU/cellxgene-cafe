@@ -1,5 +1,6 @@
 import {
   CAFE_TRAJECTORY_NAME_SET,
+  CAFE_TRAJECTORY_PREVIEW_SET,
   CAFE_TRAJECTORY_UPDATE,
   CAFE_TRAJECTORY_VISIBILITY_SET,
   CAFE_TRAJECTORY_ANCHOR_SET,
@@ -11,6 +12,7 @@ import {
 export const initialTrajectoryState = {
   trajectoryName: "",
   available: [],
+  preview: null,
   showTrajectory: false,
   anchorTrajectory: false,
   trajectoryType: "milestone",
@@ -67,6 +69,8 @@ export default function trajectory(state = initialTrajectoryState, action) {
       return { ...state, nodeSize: action.nodeSize ?? state.nodeSize };
     case CAFE_TRAJECTORY_EDGE_WIDTH_SET:
       return { ...state, edgeWidth: action.edgeWidth ?? state.edgeWidth };
+    case CAFE_TRAJECTORY_PREVIEW_SET:
+      return { ...state, preview: action.preview ?? null };
     default:
       return state;
   }

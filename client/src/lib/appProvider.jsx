@@ -1,145 +1,133 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
+import React, { createContext, useEffect, useCallback, useRef } from "react";
+import { Provider } from "react-redux";
+
+import cafeStore from "./cafeStore";
 import { fetchContext, fetchManifest } from "./api";
-import { getBridgeState, subscribeBridgeState, createBridgeState } from "./hostBridge";
+import { getBridgeState, subscribeBridgeState } from "./hostBridge";
+import {
+  setCafeManifest,
+  setCellxgeneLayoutChoice,
+  setCafeTrajectoryName,
+  setCafeTrajectoryPreview,
+} from "../reducers/actions";
 
 export const AppContext = createContext(null);
 
-export function useAppContext() {
-  const context = useContext(AppContext);
-  if (!context) {
-    throw new Error("useAppContext must be used within a CafeAppProvider");
-  }
-  return context;
+// Cache for pre-fetched context responses keyed by "trajectory|layout"
+function createContextStore() {
+  const store = {};
+  return {
+    get(t, l) { return store[`${t || ""}|${l || ""}`] || null; },
+    set(t, l, d) { if (d) store[`${t || ""}|${l || ""}`] = d; },
+    async seedAll(tr, la) {
+      if (!tr.length || !la.length) return;
+      const combos = []; tr.forEach((t) => la.forEach((l) => { if (!store[`${t}|${l}`]) combos.push({ trajectory: t, layout: l }); }));
+      if (!combos.length) return;
+      (await Promise.allSettled(combos.map((p) => fetchContext(p)))).forEach((r, i) => {
+        if (r.status === "fulfilled" && r.value) store[`${combos[i].trajectory}|${combos[i].layout}`] = r.value;
+      });
+    },
+    async ensure(t, l) { const k = `${t || ""}|${l || ""}`; if (store[k]) return store[k]; const d = await fetchContext({ trajectory: t, layout: l }); store[k] = d; return d; },
+  };
 }
 
-const moduleOrder = [
-  { key: "plot", label: "Plot" },
-  { key: "data", label: "Data" },
-  { key: "method", label: "Method" },
-  { key: "explorer", label: "Explorer" },
-  { key: "agent", label: "Agent" },
-];
+// Merge a context API response into the trajectory/cellxgene Redux slices.
+// This is the only place context data enters the store — no context.data blob.
+function mergeContextIntoStore(data) {
+  if (!data) return;
+  const cur = data.current || {};
+  cafeStore.dispatch(setCafeTrajectoryName(
+    cur.trajectory || "",
+    data.trajectories || [],
+  ));
+  cafeStore.dispatch(setCafeTrajectoryPreview(data.plot?.preview || null));
+  cafeStore.dispatch(setCellxgeneLayoutChoice(
+    cur.layout || "",
+    null,
+    data.layouts || [],
+  ));
+}
 
 export function CafeAppProvider({ children }) {
-  const [manifest, setManifest] = useState(null);
-  const [context, setContext] = useState(null);
-  const [activeTab, setActiveTab] = useState("plot");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [bridgeState, setBridgeState] = useState(() => createBridgeState());
-
-  // Track the layout/trajectory values that were last used to fetch context.
-  // This lets us detect host-initiated changes vs plugin-initiated changes.
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
   const syncedLayoutRef = useRef("");
   const syncedTrajectoryRef = useRef("");
-
-  const loadBootstrap = useCallback(async (params = {}) => {
-    setLoading(true);
-    setError("");
-    try {
-      const [manifestData, contextData] = await Promise.all([
-        fetchManifest(),
-        fetchContext(params),
-      ]);
-      setManifest(manifestData);
-      setContext(contextData);
-      setActiveTab(manifestData?.defaultTab || "plot");
-
-      const ctxLayout = contextData?.current?.layout || "";
-      const ctxTrajectory = contextData?.current?.trajectory || "";
-      syncedLayoutRef.current = ctxLayout;
-      syncedTrajectoryRef.current = ctxTrajectory;
-
-      setLoading(false);
-    } catch (err) {
-      setError(err?.message || "Failed to load CAFE plugin data");
-      setLoading(false);
-    }
-  }, []);
+  const contextStore = useRef(createContextStore()).current;
 
   const reloadContext = useCallback(async (nextParams = {}) => {
+    const t = nextParams.trajectory || "", l = nextParams.layout || "";
+    const cached = contextStore.get(t, l);
+    if (cached) { mergeContextIntoStore(cached); return; }
     try {
-      const data = await fetchContext(nextParams);
-      setContext(data);
+      const data = await contextStore.ensure(t, l);
+      mergeContextIntoStore(data);
+    } catch (err) { setError(err?.message || "Failed to refresh context"); }
+  }, [contextStore]);
 
-      const ctxLayout = data?.current?.layout || "";
-      const ctxTrajectory = data?.current?.trajectory || "";
-      syncedLayoutRef.current = ctxLayout;
-      syncedTrajectoryRef.current = ctxTrajectory;
-    } catch (err) {
-      setError(err?.message || "Failed to refresh context");
-    }
-  }, []);
+  const loadBootstrap = useCallback(async (params = {}) => {
+    setLoading(true); setError("");
+    try {
+      const [manifestData, contextData] = await Promise.all([fetchManifest(), fetchContext(params)]);
+      const defaultModules = [
+        { key: "plot", label: "Plot", enabled: true },
+        { key: "data", label: "Data", enabled: true },
+        { key: "method", label: "Method", enabled: true },
+        { key: "explorer", label: "Explorer", enabled: true },
+        { key: "agent", label: "Agent", enabled: true },
+      ];
+      const modules = (manifestData?.modules || []).map((m) => {
+        const def = defaultModules.find((d) => d.key === m.key);
+        return { ...m, label: m.label || def?.label || m.key, enabled: m.enabled ?? def?.enabled ?? false };
+      });
+      if (!modules.length) modules.push(...defaultModules);
+      cafeStore.dispatch(setCafeManifest(manifestData, modules));
+      // Merge context into trajectory + cellxgene slices (not a separate blob)
+      mergeContextIntoStore(contextData);
+      contextStore.set(contextData?.current?.trajectory, contextData?.current?.layout, contextData);
+      syncedLayoutRef.current = contextData?.current?.layout || "";
+      syncedTrajectoryRef.current = contextData?.current?.trajectory || "";
+      setLoading(false);
+      // Background pre-fetch
+      contextStore.seedAll(contextData?.trajectories || [], contextData?.layouts || []);
+    } catch (err) { setError(err?.message || "Failed to load CAFE plugin data"); setLoading(false); }
+  }, [contextStore]);
 
-  // Subscribe to bridge state changes.
+  // Sync bridge state → cafeStore (only on actual changes)
   useEffect(() => {
     loadBootstrap();
     const unsubscribe = subscribeBridgeState((nextState) => {
-      setBridgeState(nextState || getBridgeState());
+      const state = nextState || getBridgeState();
+      const cur = cafeStore.getState();
+      const nl = state?.cellxgene?.layoutChoice?.current;
+      if (nl && nl !== cur?.cellxgene?.layoutChoice?.current) {
+        cafeStore.dispatch(setCellxgeneLayoutChoice(nl, state.cellxgene.layoutChoice.currentDimNames));
+      }
+      const nt = state?.trajectory?.trajectoryName;
+      if (nt && nt !== cur?.trajectory?.trajectoryName) {
+        cafeStore.dispatch(setCafeTrajectoryName(nt, state.trajectory.available));
+      }
     });
     return () => unsubscribe();
   }, [loadBootstrap]);
 
-  // When bridge layout or trajectory changes (plugin-driven or host-driven),
-  // reload the context so that Preview / Static figures update.
+  // When store trajectory/layout changes, reload context
   useEffect(() => {
-    const bridgeLayout = bridgeState?.cellxgene?.layoutChoice?.current || "";
-    const bridgeTrajectory = bridgeState?.trajectory?.trajectoryName || "";
-    const syncedLayout = syncedLayoutRef.current;
-    const syncedTrajectory = syncedTrajectoryRef.current;
-
-    if (!context) return; // bootstrap not finished yet
-
-    const layoutChanged = bridgeLayout && bridgeLayout !== syncedLayout;
-    const trajectoryChanged = bridgeTrajectory && bridgeTrajectory !== syncedTrajectory;
-
-    if (layoutChanged || trajectoryChanged) {
-      reloadContext({
-        trajectory: trajectoryChanged ? bridgeTrajectory : syncedTrajectory,
-        layout: layoutChanged ? bridgeLayout : syncedLayout,
-      });
+    const state = cafeStore.getState();
+    const bl = state?.cellxgene?.layoutChoice?.current || "";
+    const bt = state?.trajectory?.trajectoryName || "";
+    if (!state?.trajectory?.preview) return; // context not loaded yet
+    const sl = syncedLayoutRef.current, st = syncedTrajectoryRef.current;
+    if ((bl && bl !== sl) || (bt && bt !== st)) {
+      reloadContext({ trajectory: bt !== st ? bt : st, layout: bl !== sl ? bl : sl });
     }
-  }, [
-    bridgeState?.cellxgene?.layoutChoice?.current,
-    bridgeState?.trajectory?.trajectoryName,
-    context,
-    reloadContext,
-  ]);
+  });
 
-  const modules = useMemo(() => {
-    if (!manifest?.modules) {
-      return moduleOrder.map((item) => ({ ...item, enabled: true }));
-    }
-    const enabledByKey = {};
-    manifest.modules.forEach((item) => {
-      enabledByKey[item.key] = !!item.enabled;
-    });
-    return moduleOrder.map((item) => ({
-      ...item,
-      enabled: enabledByKey[item.key] ?? false,
-    }));
-  }, [manifest]);
+  const value = { loading, error, reloadContext, loadBootstrap };
 
-  const value = {
-    manifest,
-    context,
-    activeTab,
-    loading,
-    error,
-    bridgeState,
-    modules,
-    setActiveTab,
-    reloadContext,
-    loadBootstrap,
-  };
-
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return (
+    <Provider store={cafeStore}>
+      <AppContext.Provider value={value}>{children}</AppContext.Provider>
+    </Provider>
+  );
 }

@@ -25,6 +25,16 @@ export async function fetchDataSummary() {
   return response.data;
 }
 
+export async function fetchCafeCache() {
+  const response = await api.get("/data/cafe-cache");
+  return response.data;
+}
+
+export async function importTrajectory(name, importAll) {
+  const response = await api.post("/data/import-trajectory", { name, all: importAll });
+  return response.data;
+}
+
 export async function fetchExplorerSummary(params = {}) {
   const response = await api.get("/explorer/summary", { params });
   return response.data;

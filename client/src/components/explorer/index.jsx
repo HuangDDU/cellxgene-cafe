@@ -1,4 +1,5 @@
 import React from "react";
+import { connect } from "react-redux";
 
 import { fetchExplorerSummary } from "../../lib/api";
 
@@ -216,7 +217,7 @@ class MultiTrendChart extends React.Component {
 
 // ---- main component ----
 
-export default class Explorer extends React.Component {
+class Explorer extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -236,10 +237,14 @@ export default class Explorer extends React.Component {
   }
 
   componentDidMount() {
+    // Fetch immediately at app startup so tab is ready (all modules stay mounted)
     this._loadSummary();
   }
 
   componentDidUpdate(prevProps) {
+    // Skip all context-change re-fetches while tab is hidden
+    if (!this.props.active) return;
+
     const ctx = this.props.context;
     const prevCtx = prevProps.context;
     const tChanged = ctx?.current?.trajectory !== prevCtx?.current?.trajectory;
@@ -395,7 +400,19 @@ export default class Explorer extends React.Component {
 
         {activeSubModule === "benchmark" && (
           <div className="cafe-card">
-            <h4>Trajectory Benchmark</h4>
+            <div className="cafe-method-header">
+              <h4>Trajectory Benchmark</h4>
+              <button
+                type="button"
+                className="cafe-btn cafe-btn-primary"
+                onClick={() => {
+                  this.setState({ activeSubModule: "benchmark" });
+                  this._loadSummary();
+                }}
+              >
+                Refresh Metrics
+              </button>
+            </div>
             {!benchmarkRows.length ? (
               <div className="cafe-note">
                 No benchmark metrics found in current trajectory history.
@@ -712,3 +729,14 @@ export default class Explorer extends React.Component {
     );
   }
 }
+
+const mapState = (state) => ({
+  context: {
+    current: {
+      trajectory: state.trajectory?.trajectoryName || "",
+      layout: state.cellxgene?.layoutChoice?.current || "",
+    },
+  },
+});
+
+export default connect(mapState)(Explorer);

@@ -114,7 +114,64 @@
 }
 
 .cafe-card h4 {
-  margin: 0 0 8px;
+  margin: 0;
+}
+
+.cafe-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 0;
+}
+
+.cafe-card-header:hover {
+  color: #2f6f9f;
+}
+
+.cafe-card-chevron {
+  font-size: 14px;
+  color: #7a95b1;
+  width: 14px;
+  flex: 0 0 auto;
+}
+
+.cafe-card-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #eef6fd;
+  color: #2f6f9f;
+  border: 1px solid #b8d4ed;
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-left: auto;
+}
+
+.cafe-card-body {
+  margin-top: 10px;
+}
+
+.cafe-btn-primary {
+  background: #2f6f9f;
+  color: #fff;
+  border-color: #2f6f9f;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.cafe-btn-primary:hover {
+  background: #255b84;
+}
+
+.cafe-success {
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid #a3d4a3;
+  border-radius: 4px;
+  color: #1f6d1f;
+  background: #e8f7e8;
 }
 
 .cafe-form-grid {
@@ -707,4 +764,137 @@
   .cafe-dynamics-controls-panel {
     order: 1;
   }
+}
+
+/* ---- Toast notifications ---- */
+
+.cafe-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  max-width: 400px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  animation: cafe-toast-in 0.3s ease;
+}
+
+.cafe-toast-info {
+  background: #dff2ff;
+  border: 1px solid #8fc4e8;
+  color: #0b5d8d;
+}
+
+.cafe-toast-success {
+  background: #e3f7e8;
+  border: 1px solid #8fd4a0;
+  color: #216737;
+}
+
+.cafe-toast-error {
+  background: #fdecec;
+  border: 1px solid #e8a0a0;
+  color: #8f1f1f;
+}
+
+@keyframes cafe-toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Method selector ---- */
+
+.cafe-method-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cafe-method-selector select {
+  max-width: 420px;
+}
+
+/* ---- Agent module ---- */
+
+.cafe-agent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cafe-agent-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cafe-agent-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 360px;
+}
+
+.cafe-agent-messages {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 400px;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cafe-agent-msg {
+  max-width: 85%;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.cafe-agent-msg-user {
+  align-self: flex-end;
+  background: #2f6f9f;
+  color: #fff;
+}
+
+.cafe-agent-msg-assistant {
+  align-self: flex-start;
+  background: #f0f4fa;
+  border: 1px solid #d8e1ec;
+  color: #24384e;
+}
+
+.cafe-agent-msg-role {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.cafe-agent-typing {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.cafe-agent-input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #d8e1ec;
+}
+
+.cafe-agent-input {
+  flex: 1;
+  border: 1px solid #c6d3e0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
 }

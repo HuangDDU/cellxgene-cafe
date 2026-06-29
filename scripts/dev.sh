@@ -98,6 +98,9 @@ patch_backend_template_for_dev_bundle() {
   if grep -E -q "${search}" "${host_template_file}"; then
     sed -i -E "s|${search}|${replace}|" "${host_template_file}"
     echo "[DEV] Patched backend template to use dev bundle: ${host_template_file}"
+  elif ! grep -q "static/js/bundle.js" "${host_template_file}"; then
+    sed -i "s|</head>|${replace}|" "${host_template_file}"
+    echo "[DEV] Added dev bundle to backend template: ${host_template_file}"
   else
     echo "[DEV] Backend template already points to dev bundle: ${host_template_file}"
   fi
@@ -214,6 +217,9 @@ dev_main() {
   # Prevent launch failures due to stale ports.
   ensure_port_ready "${server_port}" "${force_kill_port}"
   ensure_port_ready "${client_port}" "${force_kill_port}"
+  if [[ "${plugin_hmr}" == "1" ]]; then
+    ensure_port_ready "${plugin_dev_port}" "${force_kill_port}"
+  fi
 
   # Export variables consumed by injectors and host make targets.
   export CELLXGENE_HOST_ROOT="${cellxgene_source_root}"
@@ -251,13 +257,24 @@ dev_main() {
   echo "[DEV] Inject backend/frontend hooks"
   cd "${ROOT_DIR}"
   python3 scripts/inject_server.py
+  local backend_template="${cellxgene_source_root}/server/common/web/templates/index.html"
+  if [[ ! -f "${backend_template}" ]]; then
+    mkdir -p "$(dirname "${backend_template}")"
+    cp "${cellxgene_source_root}/client/index_template.html" "${backend_template}"
+  fi
   python3 scripts/inject_client.py
-  patch_backend_template_for_dev_bundle "${cellxgene_source_root}/server/common/web/templates/index.html" "${client_port}"
+  if [[ "${plugin_hmr}" == "1" ]]; then
+    sed -i -E 's|<script src="[^"]*cafe-plugin[^"]*"></script>|<script src="'"${CAFE_PLUGIN_BUNDLE_URL}"'"></script>|' \
+      "${cellxgene_source_root}/client/index_template.html" \
+      "${backend_template}"
+  fi
+  patch_backend_template_for_dev_bundle "${backend_template}" "${client_port}"
   patch_host_redux_devtools "${cellxgene_source_root}"
 
   # Keep plugin backend/bridge code hot-swappable in host source tree.
   cp "${ROOT_DIR}/server/cafe_api.py" "${cellxgene_source_root}/server/cafe_api.py"
-  cp "${ROOT_DIR}/server/cafe_util.py" "${cellxgene_source_root}/server/cafe_util.py"
+  rm -rf "${cellxgene_source_root}/server/cafe_util"
+  cp -r "${ROOT_DIR}/server/cafe_util" "${cellxgene_source_root}/server/cafe_util/"
   cp "${ROOT_DIR}/client/src/lib/cafeHostBridge.js" "${cellxgene_source_root}/client/src/cafeHostBridge.js"
 
   # Keep a fallback static asset path in place for non-HMR installations.

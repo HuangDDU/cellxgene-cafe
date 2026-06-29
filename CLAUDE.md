@@ -14,7 +14,15 @@ Cell fate analysis plugin for CZ CELLxGENE Annotate. Injects as a floating jsPan
 ```
 server/                         Flask blueprint (injected into host app.py)
   cafe_api.py                   Routes: /manifest, /context, /plot/static, /job/*
-  cafe_util.py                  Helpers: UNS loading, preview, static rendering, fallback
+  cafe_util/                    Backend helpers split by domain
+    constants.py                Benchmark metric keys, gene sets
+    common.py                   Pure utility functions (color, JSON, type coercion)
+    compat.py                   matplotlib/scvelo/fate_anndata patches
+    adata.py                    UNS/FateAnnData loading, dataset meta, selection
+    plot.py                     Preview building, static rendering, fallback drawing
+    data.py                     Data summary, h5ad/trajectory package export
+    method.py                   Method catalog, job submission/query/cancel
+    explorer.py                 Benchmark, driver genes, gene trends, integrations
 
 scripts/
   inject_server.py              Patches host app.py to register cafe_bp
@@ -38,10 +46,10 @@ client/src/
         TrajectoryPreview.jsx   Reads AppContext for preview SVG data
       StaticPanel/
         index.jsx               Reads AppContext for static plot image URL
-    data/index.jsx              Full data summary: structure, trajectories, embeddings
-    explorer/index.jsx          Benchmark, comparison, driver genes, gene trends
-    method/index.jsx            Method catalog, job submit, polling, logs
-    agent/index.jsx             Placeholder
+    data/index.jsx              Collapsible cards: prior knowledge, trajectory history, cafe results import, embeddings
+    explorer/index.jsx          Benchmark table with refresh btn, metric comparison, driver genes, gene trends
+    method/index.jsx             Dropdown method selector, smart param inputs, toast notifications
+    agent/index.jsx              LLM chat + analysis templates + backend query endpoint
   lib/
     appProvider.jsx             CafeAppProvider — AppContext with manifest/context/bridgeState
     api.js                      Axios client: fetchManifest, fetchContext, buildStaticPlotUrl, job APIs

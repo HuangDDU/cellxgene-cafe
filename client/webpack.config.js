@@ -6,7 +6,9 @@ module.exports = (env = {}, argv = {}) => {
   const enableHmr = !!env.hmr && !isProduction;
   const devServerPort = Number(process.env.CAFE_PLUGIN_DEV_SERVER_PORT || 3001);
 
-  const babelPlugins = [];
+  const babelPlugins = [
+    ["@babel/plugin-proposal-decorators", { legacy: true }],
+  ];
   if (enableHmr) {
     babelPlugins.push(require.resolve("react-refresh/babel"));
   }

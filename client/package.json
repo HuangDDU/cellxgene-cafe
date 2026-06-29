@@ -14,11 +14,15 @@
   },
   "dependencies": {
     "axios": "^1.15.2",
+    "cytoscape": "^3.33.3",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-cytoscapejs": "^2.0.0",
+    "react-dom": "^18.2.0",
+    "react-redux": "^9.2.0"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
+    "@babel/plugin-proposal-decorators": "^7.29.0",
     "@babel/preset-env": "^7.26.0",
     "@babel/preset-react": "^7.25.9",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.15",

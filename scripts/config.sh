@@ -30,7 +30,8 @@ config_main() {
 
   echo "[3/5] Copy backend connector files"
   cp "${ROOT_DIR}/server/cafe_api.py" "${host_dir}/server/cafe_api.py"
-  cp "${ROOT_DIR}/server/cafe_util.py" "${host_dir}/server/cafe_util.py"
+  rm -rf "${host_dir}/server/cafe_util"
+  cp -r "${ROOT_DIR}/server/cafe_util" "${host_dir}/server/cafe_util/"
 
   echo "[4/5] Copy frontend bundle"
   mkdir -p "${host_dir}/server/common/web/static"

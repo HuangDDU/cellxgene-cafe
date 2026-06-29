@@ -1,9 +1,11 @@
 import { initialCellxgeneState } from "./cellxgene";
+import { initialContextState } from "./context";
 import { initialTrajectoryState } from "./trajectory";
 
 export function createDefaultCafeBridgeState() {
   return {
     cellxgene: { ...initialCellxgeneState },
+    context: { ...initialContextState },
     trajectory: { ...initialTrajectoryState },
     host: {
       nObs: null,
@@ -19,11 +21,13 @@ export function selectCafeBridgeState(state = {}) {
   const defaultState = createDefaultCafeBridgeState();
   const cellxgeneState = state.cellxgene || defaultState.cellxgene;
   const trajectoryState = state.trajectory || defaultState.trajectory;
+  const contextState = state.context || defaultState.context;
   const layoutChoice = cellxgeneState.layoutChoice || defaultState.cellxgene.layoutChoice;
   const anno = state.annoMatrix || {};
 
   return {
     cellxgene: cellxgeneState,
+    context: contextState,
     trajectory: trajectoryState,
     host: {
       nObs: Number.isFinite(anno.nObs) ? anno.nObs : null,

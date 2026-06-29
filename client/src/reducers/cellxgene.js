@@ -16,6 +16,7 @@ export default function cellxgene(state = initialCellxgeneState, action) {
         layoutChoice: {
           ...state.layoutChoice,
           current: action.layoutChoice ?? state.layoutChoice.current,
+          available: action.available ?? state.layoutChoice.available,
           currentDimNames: action.currentDimNames ?? state.layoutChoice.currentDimNames,
         },
       };

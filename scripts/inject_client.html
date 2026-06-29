@@ -1,203 +1,658 @@
 <!-- CAFE-PLUGIN-INJECTION START -->
-<script defer src="__CAFE_PLUGIN_BUNDLE_URL__"></script>
+<link href="https://cdn.jsdelivr.net/npm/jspanel4@4.16.1/dist/jspanel.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/jspanel4@4.16.1/dist/jspanel.min.js"></script>
+<script src="static/cafe-plugin.js?v=20260424-plotfix"></script>
 <script>
 (function () {
-	const launcherId = "cafe-plugin-launcher";
-	const panelId = "cafe-plugin-panel";
-	const rootId = "cafe-plugin-root";
-	const pluginBundleUrl = "__CAFE_PLUGIN_BUNDLE_URL__";
-	const pluginHmrEnabled = "__CAFE_PLUGIN_HMR_ENABLED__" === "1";
-	const jsPanelCssId = "cafe-plugin-jspanel-css";
-	const jsPanelScriptSelector = "script[data-cafe-jspanel='1']";
-	const jsPanelCssUrl = "https://cdn.jsdelivr.net/npm/jspanel4@4.16.1/dist/jspanel.min.css";
-	const jsPanelJsUrl = "https://cdn.jsdelivr.net/npm/jspanel4@4.16.1/dist/jspanel.min.js";
-	const devProbeIntervalMs = 1500;
-	let jsPanelLoader = null;
-	let devProbeTimer = null;
-	let lastPluginBundleVersion = null;
+  const launcherId = "cafe-plugin-launcher";
+  const panelId = "cafe-plugin-panel";
+  const rootId = "cafe-plugin-root";
+  const overlayRootId = "cafe-host-trajectory-overlay";
+  const hostBridgeEvent = "cafe:hostbridge:state";
+  const trajectoryUpdateEvent = "cafe:trajectory:update";
+  function defaultBridgeState() {
+    return {
+      layoutChoice: { current: "" },
+      trajectoryChoice: { current: "", available: [] },
+      trajectory: {
+        showTrajectory: false,
+        anchorTrajectory: false,
+        trajectoryType: "milestone",
+        nodeSize: 2.5,
+        edgeWidth: 1
+      }
+    };
+  }
 
-	function ensureJsPanelCss() {
-		if (document.getElementById(jsPanelCssId)) {
-			return;
-		}
-		const link = document.createElement("link");
-		link.id = jsPanelCssId;
-		link.rel = "stylesheet";
-		link.href = jsPanelCssUrl;
-		document.head.appendChild(link);
-	}
+  const bridgeState = defaultBridgeState();
+  const bridgeListeners = new Set();
+  let bridgeContext = null;
+  let currentFetchId = 0;
+  let layoutObserver = null;
+  let graphPollHandle = null;
+  let overlayImageSignature = "";
 
-	function ensureJsPanelLoaded() {
-		if (window.jsPanel) {
-			return Promise.resolve(true);
-		}
+  function deepClone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
 
-		if (jsPanelLoader) {
-			return jsPanelLoader;
-		}
+  function notifyBridge() {
+    const snapshot = deepClone(bridgeState);
+    bridgeListeners.forEach((listener) => {
+      try {
+        listener(snapshot);
+      } catch (error) {
+        console.error("CAFE host bridge listener failed.", error);
+      }
+    });
+    window.dispatchEvent(new CustomEvent(hostBridgeEvent, { detail: snapshot }));
+  }
 
-		ensureJsPanelCss();
-		jsPanelLoader = new Promise((resolve) => {
-			const existing = document.querySelector(jsPanelScriptSelector);
-			if (existing) {
-				if (window.jsPanel) {
-					resolve(true);
-					return;
-				}
-				existing.addEventListener("load", () => resolve(!!window.jsPanel), {
-					once: true,
-				});
-				existing.addEventListener("error", () => resolve(false), {
-					once: true,
-				});
-				return;
-			}
+  function normalizeLayoutName(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return "";
+    }
+    const compact = text
+      .split(/[:：]/)[0]
+      .trim()
+      .split(/\\s+/)[0]
+      .trim();
+    if (!compact) {
+      return "";
+    }
+    return compact.startsWith("X_") ? compact.slice(2) : compact;
+  }
 
-			const script = document.createElement("script");
-			script.src = jsPanelJsUrl;
-			script.async = true;
-			script.dataset.cafeJspanel = "1";
-			script.addEventListener("load", () => resolve(!!window.jsPanel), {
-				once: true,
-			});
-			script.addEventListener("error", () => resolve(false), {
-				once: true,
-			});
-			document.head.appendChild(script);
-		});
+  function hostLayoutChoice() {
+    var button = document.querySelector('[data-testid="layout-choice"]');
+    if (!button) {
+      return "";
+    }
+    var text = String(button.textContent || "").trim();
+    return text ? normalizeLayoutName(text) : "";
+  }
 
-		return jsPanelLoader;
-	}
+  function hostAvailableLayouts() {
+    // Scrape layout buttons from the host UI
+    var layouts = [];
+    var buttons = document.querySelectorAll('[data-testid="layout-choice"]');
+    buttons.forEach(function (btn) {
+      var t = String(btn.textContent || "").trim();
+      if (t) { layouts.push(normalizeLayoutName(t)); }
+    });
+    // Also try to find layout buttons in the embedding chooser
+    var chooser = document.querySelector('[data-testid="embedding-chooser"]');
+    if (chooser) {
+      var opts = chooser.querySelectorAll('button, [role="option"], .bp3-menu-item');
+      opts.forEach(function (opt) {
+        var t = String(opt.textContent || "").trim();
+        if (t) { layouts.push(normalizeLayoutName(t)); }
+      });
+    }
+    var unique = [];
+    layouts.forEach(function (l) { if (unique.indexOf(l) < 0) unique.push(l); });
+    return unique;
+  }
 
-	function isHostDevBundleMode() {
-		const scripts = Array.from(document.querySelectorAll("script[src]"));
-		return scripts.some(
-			(script) => script.src.includes("localhost:") && script.src.includes("/static/js/bundle.js")
-		);
-	}
+  function syncHostLayoutChoice() {
+    var nextLayout = hostLayoutChoice();
+    var available = hostAvailableLayouts();
+    if (available.length) {
+      bridgeState.layoutChoice.available = available;
+    }
+    if (!nextLayout || bridgeState.layoutChoice.current === nextLayout) {
+      return false;
+    }
+    bridgeState.layoutChoice.current = nextLayout;
+    return true;
+  }
 
-	function readBundleVersion(response) {
-		return (
-			response.headers.get("etag") ||
-			response.headers.get("last-modified") ||
-			response.headers.get("content-length") ||
-			""
-		);
-	}
+  function applyBridgePatch(patch) {
+    if (!patch || typeof patch !== "object") {
+      return;
+    }
 
-	async function probePluginBundleVersion() {
-		try {
-			const probeUrl = `${pluginBundleUrl}?__cafe_dev_probe=${Date.now()}`;
-			const response = await fetch(probeUrl, {
-				method: "HEAD",
-				cache: "no-store",
-				credentials: "same-origin",
-			});
-			if (!response.ok) {
-				return null;
-			}
-			return readBundleVersion(response);
-		} catch (error) {
-			return null;
-		}
-	}
+    if (patch.trajectoryChoice !== undefined) {
+      if (typeof patch.trajectoryChoice === "string") {
+        bridgeState.trajectoryChoice.current = patch.trajectoryChoice;
+      } else if (patch.trajectoryChoice && typeof patch.trajectoryChoice === "object") {
+        bridgeState.trajectoryChoice = {
+          ...bridgeState.trajectoryChoice,
+          ...patch.trajectoryChoice
+        };
+      }
+    }
 
-	async function reloadPageIfPluginBundleChanged() {
-		const nextVersion = await probePluginBundleVersion();
-		if (!nextVersion) {
-			return;
-		}
+    if (patch.layoutChoice !== undefined) {
+      if (typeof patch.layoutChoice === "string") {
+        bridgeState.layoutChoice.current = normalizeLayoutName(patch.layoutChoice);
+      } else if (patch.layoutChoice && typeof patch.layoutChoice === "object") {
+        bridgeState.layoutChoice = {
+          ...bridgeState.layoutChoice,
+          ...patch.layoutChoice,
+          current: normalizeLayoutName(patch.layoutChoice.current || bridgeState.layoutChoice.current)
+        };
+      }
+    }
 
-		if (!lastPluginBundleVersion) {
-			lastPluginBundleVersion = nextVersion;
-			return;
-		}
+    bridgeState.trajectory = {
+      ...bridgeState.trajectory,
+      ...Object.fromEntries(
+        Object.entries(patch).filter(([key]) =>
+          ["showTrajectory", "anchorTrajectory", "trajectoryType", "nodeSize", "edgeWidth"].includes(key)
+        )
+      )
+    };
+  }
 
-		if (nextVersion === lastPluginBundleVersion) {
-			return;
-		}
+  function apiUrl(path, params) {
+    const query = new URLSearchParams();
+    Object.entries(params || {}).forEach(([key, value]) => {
+      const text = String(value || "").trim();
+      if (text) {
+        query.set(key, text);
+      }
+    });
+    const suffix = query.toString();
+    return suffix ? `/api/cafe${path}?${suffix}` : `/api/cafe${path}`;
+  }
 
-		window.location.reload();
-	}
+  function ensureOverlayRoot() {
+    const modelGroup = document.getElementById("model-transformation-group");
+    const svgRoot = modelGroup && modelGroup.ownerSVGElement ? modelGroup.ownerSVGElement : null;
+    if (!modelGroup || !svgRoot) {
+      return null;
+    }
+    let overlayRoot = document.getElementById(overlayRootId);
+    if (!overlayRoot || overlayRoot.parentNode !== document.body) {
+      if (overlayRoot && overlayRoot.parentNode) {
+        overlayRoot.parentNode.removeChild(overlayRoot);
+      }
+      overlayRoot = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      overlayRoot.setAttribute("id", overlayRootId);
+      overlayRoot.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      overlayRoot.style.position = "fixed";
+      overlayRoot.style.left = "0";
+      overlayRoot.style.top = "0";
+      overlayRoot.style.pointerEvents = "none";
+      overlayRoot.style.zIndex = "30";
+      overlayRoot.style.display = "none";
+      document.body.appendChild(overlayRoot);
+    }
+    updateOverlayFrame(overlayRoot, modelGroup, svgRoot);
+    return overlayRoot;
+  }
 
-	function startPluginDevAutoReload() {
-		if (pluginHmrEnabled || !isHostDevBundleMode() || devProbeTimer) {
-			return;
-		}
+  function updateOverlayFrame(overlayRoot, modelGroup, svgRoot) {
+    if (!overlayRoot || !modelGroup || !svgRoot) {
+      return;
+    }
+    var rect = modelGroup.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      rect = svgRoot.getBoundingClientRect();
+    }
+    overlayRoot.style.left = rect.left + "px";
+    overlayRoot.style.top = rect.top + "px";
+    overlayRoot.style.width = rect.width + "px";
+    overlayRoot.style.height = rect.height + "px";
+    overlayRoot.setAttribute("width", String(Math.round(rect.width)));
+    overlayRoot.setAttribute("height", String(Math.round(rect.height)));
+    overlayRoot.setAttribute("viewBox", "0 0 " + Math.round(rect.width) + " " + Math.round(rect.height));
+  }
 
-		reloadPageIfPluginBundleChanged();
-		devProbeTimer = window.setInterval(reloadPageIfPluginBundleChanged, devProbeIntervalMs);
-	}
+  function clearOverlay() {
+    var overlayRoot = document.getElementById(overlayRootId);
+    if (overlayRoot) {
+      while (overlayRoot.firstChild) { overlayRoot.removeChild(overlayRoot.firstChild); }
+      overlayRoot.style.display = "none";
+    }
+  }
 
-	function mountCafePlugin() {
-		if (window.CafePlugin && typeof window.CafePlugin.mount === "function") {
-			window.CafePlugin.mount(rootId);
-		} else if (window.mountCafeApp) {
-			window.mountCafeApp(rootId);
-		} else {
-			console.error("CAFE plugin bundle loaded but mount function is missing.");
-		}
-	}
+  function asFiniteNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
 
-	async function openPanel() {
-		const loaded = await ensureJsPanelLoaded();
-		if (!loaded || !window.jsPanel) {
-			console.error("jsPanel is not loaded.");
-			return;
-		}
+  function normalizePreviewData(preview) {
+    const nodes = Array.isArray(preview?.nodes) ? preview.nodes : [];
+    const edges = Array.isArray(preview?.edges) ? preview.edges : [];
+    const waypointSegments = preview?.waypointSegments || {};
+    return {
+      nodes: nodes
+        .map((node) => ({
+          id: String(node?.id || ""),
+          x: asFiniteNumber(node?.x),
+          y: asFiniteNumber(node?.y),
+          color: node?.color || "#9aa7b0"
+        }))
+        .filter((node) => node.id && node.x !== null && node.y !== null),
+      edges: edges
+        .map((edge) => ({
+          id: String(edge?.id || ""),
+          source: String(edge?.source || ""),
+          target: String(edge?.target || "")
+        }))
+        .filter((edge) => edge.source && edge.target),
+      waypointSegments: Object.fromEntries(
+        Object.entries(waypointSegments).map(([groupId, points]) => [
+          groupId,
+          (Array.isArray(points) ? points : [])
+            .map((point) => ({
+              x: asFiniteNumber(point?.x),
+              y: asFiniteNumber(point?.y),
+              percentage: asFiniteNumber(point?.percentage) ?? 0
+            }))
+            .filter((point) => point.x !== null && point.y !== null)
+        ])
+      )
+    };
+  }
 
-		const existing = document.getElementById(panelId);
-		if (existing && existing.jspanel) {
-			existing.jspanel.front();
-			return;
-		}
+  function normalizeOverlayData(overlaySpec) {
+    const milestonePositions = Array.isArray(overlaySpec?.milestonePositions) ? overlaySpec.milestonePositions : [];
+    const wpSegments = Array.isArray(overlaySpec?.wpSegments) ? overlaySpec.wpSegments : [];
 
-		window.jsPanel.create({
-			id: panelId,
-			headerTitle: "CAFE Plugins",
-			theme: "primary",
-			contentSize: "780 640",
-			position: "center-top 0 64",
-			content: '<div id="' + rootId + '" style="height:100%;overflow:auto;"></div>',
-			callback: mountCafePlugin,
-			onclosed: function () {
-				if (window.CafePlugin && typeof window.CafePlugin.unmount === "function") {
-					window.CafePlugin.unmount(rootId);
-				}
-			},
-		});
-	}
+    const nodesById = new Map();
+    milestonePositions.forEach((item) => {
+      const milestoneId = String(item?.milestone_id || "");
+      const x = asFiniteNumber(item?.comp_1);
+      const y = asFiniteNumber(item?.comp_2);
+      if (!milestoneId || x === null || y === null || nodesById.has(milestoneId)) {
+        return;
+      }
+      nodesById.set(milestoneId, {
+        id: milestoneId,
+        x,
+        y,
+        color: "#9aa7b0"
+      });
+    });
 
-	function ensureLauncherButton() {
-		if (document.getElementById(launcherId)) {
-			return;
-		}
+    const edgesById = new Map();
+    milestonePositions.forEach((item) => {
+      const source = String(item?.from || "");
+      const target = String(item?.to || "");
+      const edgeId = String(item?.group || `${source}---${target}`);
+      if (!source || !target || !edgeId) {
+        return;
+      }
+      if (!nodesById.has(source) || !nodesById.has(target)) {
+        return;
+      }
+      if (!edgesById.has(edgeId)) {
+        edgesById.set(edgeId, { id: edgeId, source, target });
+      }
+    });
 
-		const button = document.createElement("button");
-		button.id = launcherId;
-		button.type = "button";
-		button.textContent = "Cafe Plugins";
-		button.style.position = "fixed";
-		button.style.right = "14px";
-		button.style.bottom = "16px";
-		button.style.zIndex = "9999";
-		button.style.padding = "6px 10px";
-		button.style.border = "1px solid #6a8fb2";
-		button.style.borderRadius = "4px";
-		button.style.background = "#2f6f9f";
-		button.style.color = "#fff";
-		button.style.cursor = "pointer";
-		button.title = "Open CAFE plugin window";
-		button.addEventListener("click", openPanel);
-		document.body.appendChild(button);
-	}
+    const waypointSegments = {};
+    wpSegments.forEach((item) => {
+      const groupId = String(item?.group || "");
+      const x = asFiniteNumber(item?.comp_1);
+      const y = asFiniteNumber(item?.comp_2);
+      if (!groupId || x === null || y === null) {
+        return;
+      }
+      if (!waypointSegments[groupId]) {
+        waypointSegments[groupId] = [];
+      }
+      waypointSegments[groupId].push({
+        x,
+        y,
+        percentage: asFiniteNumber(item?.percentage) ?? 0
+      });
+    });
 
-	window.openCafePluginPanel = openPanel;
-	window.addEventListener("load", function () {
-		setTimeout(ensureLauncherButton, 700);
-		// Dev-only: auto reload host page when plugin bundle changes.
-		startPluginDevAutoReload();
-	});
+    Object.values(waypointSegments).forEach((points) => {
+      points.sort((left, right) => Number(right.percentage || 0) - Number(left.percentage || 0));
+    });
+
+    return {
+      nodes: Array.from(nodesById.values()),
+      edges: Array.from(edgesById.values()),
+      waypointSegments
+    };
+  }
+
+  function drawSVGTrajectory(svg, data, w, h) {
+    // Clear previous content
+    while (svg.firstChild) { svg.removeChild(svg.firstChild); }
+
+    var nodes = data.nodes || [];
+    var edges = data.edges || [];
+    var segments = data.waypointSegments || {};
+    if (!nodes.length) return;
+
+    // Compute bounds from node coordinates
+    var xs = nodes.map(function (n) { return Number(n.x || 0); });
+    var ys = nodes.map(function (n) { return Number(n.y || 0); });
+    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+    var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+    var xSpan = (maxX - minX) || 1, ySpan = (maxY - minY) || 1;
+    var pad = 20;
+    var sx = function (x) { return pad + ((Number(x || 0) - minX) / xSpan) * (w - pad * 2); };
+    var sy = function (y) { return h - pad - ((Number(y || 0) - minY) / ySpan) * (h - pad * 2); };
+
+    var nodeById = {};
+    nodes.forEach(function (n) { nodeById[String(n.id)] = n; });
+
+    // Draw waypoint segments (dashed lines behind nodes)
+    var segKeys = Object.keys(segments);
+    for (var i = 0; i < segKeys.length; i++) {
+      var pts = segments[segKeys[i]];
+      if (!pts || pts.length < 2) continue;
+      var d = "";
+      for (var j = 0; j < pts.length; j++) {
+        d += (j === 0 ? "M" : "L") + " " + sx(pts[j].x) + " " + sy(pts[j].y) + " ";
+      }
+      var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", d);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "#8899aa");
+      path.setAttribute("stroke-width", "1.5");
+      path.setAttribute("stroke-dasharray", "4 3");
+      path.setAttribute("opacity", "0.7");
+      svg.appendChild(path);
+    }
+
+    // Draw edges
+    for (var k = 0; k < edges.length; k++) {
+      var e = edges[k];
+      var src = nodeById[e.source], tgt = nodeById[e.target];
+      if (!src || !tgt) continue;
+      var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", sx(src.x));
+      line.setAttribute("y1", sy(src.y));
+      line.setAttribute("x2", sx(tgt.x));
+      line.setAttribute("y2", sy(tgt.y));
+      line.setAttribute("stroke", "#2f4d6f");
+      line.setAttribute("stroke-width", "2.5");
+      line.setAttribute("opacity", "0.85");
+      svg.appendChild(line);
+    }
+
+    // Draw nodes
+    for (var m = 0; m < nodes.length; m++) {
+      var node = nodes[m];
+      var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", sx(node.x));
+      circle.setAttribute("cy", sy(node.y));
+      circle.setAttribute("r", "6");
+      circle.setAttribute("fill", node.color || "#7eb5df");
+      circle.setAttribute("stroke", "#1f3d5d");
+      circle.setAttribute("stroke-width", "1.2");
+      g.appendChild(circle);
+      var text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", sx(node.x) + 8);
+      text.setAttribute("y", sy(node.y) - 8);
+      text.setAttribute("font-size", "10");
+      text.setAttribute("fill", "#2f4d6f");
+      text.textContent = node.label || node.id || "";
+      g.appendChild(text);
+      svg.appendChild(g);
+    }
+  }
+
+  function renderOverlay() {
+    var overlayRoot = ensureOverlayRoot();
+    if (!overlayRoot) { return; }
+
+    var showTrajectory = !!bridgeState.trajectory.showTrajectory;
+    var trajectoryType = bridgeState.trajectory.trajectoryType || "milestone";
+    var preview = bridgeContext?.plot?.preview;
+    var hasData = !!(preview && preview.nodes && preview.nodes.length);
+
+    if (!showTrajectory || !hasData) {
+      overlayRoot.style.display = "none";
+      return;
+    }
+
+    var w = parseFloat(overlayRoot.getAttribute("width")) || 0;
+    var h = parseFloat(overlayRoot.getAttribute("height")) || 0;
+    if (w < 10 || h < 10) {
+      // Graph not rendered yet, skip
+      return;
+    }
+
+    var data = {
+      nodes: preview.nodes || [],
+      edges: preview.edges || [],
+      waypointSegments: preview.waypointSegments || {}
+    };
+
+    var sig = JSON.stringify({ n: data.nodes.length, e: data.edges.length, t: trajectoryType, w: w, h: h });
+    if (overlayImageSignature !== sig) {
+      drawSVGTrajectory(overlayRoot, data, w, h);
+      overlayImageSignature = sig;
+    }
+    overlayRoot.style.display = "";
+  }
+
+  async function refreshOverlayContext() {
+    const fetchId = ++currentFetchId;
+    const params = {
+      trajectory: bridgeState.trajectoryChoice.current || "",
+      layout: normalizeLayoutName(bridgeState.layoutChoice.current || hostLayoutChoice())
+    };
+    try {
+      const response = await fetch(apiUrl("/context", params), { credentials: "same-origin" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload = await response.json();
+      if (fetchId !== currentFetchId) {
+        return;
+      }
+      console.debug("CAFE overlay context loaded", payload);
+      bridgeContext = payload;
+      bridgeState.trajectoryChoice.available = Array.isArray(payload.trajectories) ? payload.trajectories : [];
+      if (!bridgeState.trajectoryChoice.current) {
+        bridgeState.trajectoryChoice.current = payload?.current?.trajectory || "";
+      }
+      if (!bridgeState.layoutChoice.current) {
+        bridgeState.layoutChoice.current = normalizeLayoutName(payload?.current?.layout || "");
+      }
+      notifyBridge();
+      renderOverlay();
+    } catch (error) {
+      console.error("Failed to refresh CAFE overlay context.", error);
+      if (fetchId === currentFetchId) {
+        bridgeContext = null;
+        clearOverlay();
+      }
+    }
+  }
+
+  function updateBridge(patch) {
+    const before = JSON.stringify(bridgeState);
+    applyBridgePatch(patch);
+    syncHostLayoutChoice();
+    notifyBridge();
+    renderOverlay();
+    if (JSON.stringify(bridgeState) !== before || !bridgeContext) {
+      refreshOverlayContext();
+    }
+  }
+
+  function watchHostLayoutChoice() {
+    const button = document.querySelector('[data-testid="layout-choice"]');
+    if (!button) {
+      return;
+    }
+    if (layoutObserver) {
+      layoutObserver.disconnect();
+    }
+    layoutObserver = new MutationObserver(() => {
+      if (syncHostLayoutChoice()) {
+        refreshOverlayContext();
+      }
+    });
+    layoutObserver.observe(button, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+  }
+
+  function startGraphPolling() {
+    if (graphPollHandle) {
+      window.clearInterval(graphPollHandle);
+    }
+    // Fetch context after a short delay to ensure graph DOM is ready
+    setTimeout(function () { refreshOverlayContext(); }, 800);
+    graphPollHandle = window.setInterval(function () {
+      watchHostLayoutChoice();
+      renderOverlay();
+    }, 1200);
+  }
+
+  window.CafeHostBridge = {
+    getState: function () {
+      syncHostLayoutChoice();
+      return deepClone(bridgeState);
+    },
+    subscribe: function (listener) {
+      if (typeof listener !== "function") {
+        return function () {};
+      }
+      bridgeListeners.add(listener);
+      try {
+        listener(deepClone(bridgeState));
+      } catch (error) {
+        console.error("CAFE host bridge initial listener call failed.", error);
+      }
+      return function () {
+        bridgeListeners.delete(listener);
+      };
+    },
+    updateTrajectory: function (patch) {
+      updateBridge(patch || {});
+    },
+    dispatch: function (action) {
+      if (!action || typeof action !== "object") { return; }
+
+      // Handle layout choice changes from the plugin
+      if (action.type === "set layout choice") {
+        if (action.layoutChoice) {
+          bridgeState.layoutChoice.current = normalizeLayoutName(action.layoutChoice);
+        }
+        notifyBridge();
+        return;
+      }
+
+      // Forward trajectory actions to updateBridge
+      if (action.type === "cafe/trajectory/choice/set" || action.type === "cafe/trajectoryChoice/set") {
+        updateBridge({ trajectoryChoice: action.trajectoryChoice });
+        return;
+      }
+      if (action.type === "cafe/trajectory/show") {
+        updateBridge({ showTrajectory: action.showTrajectory });
+        return;
+      }
+      if (action.type === "cafe/trajectory/anchor") {
+        updateBridge({ anchorTrajectory: action.anchorTrajectory });
+        return;
+      }
+      if (action.type === "cafe/trajectory/type") {
+        updateBridge({ trajectoryType: action.trajectoryType });
+        return;
+      }
+      if (action.type === "cafe/trajectory/nodeSize") {
+        updateBridge({ nodeSize: action.nodeSize });
+        return;
+      }
+      if (action.type === "cafe/trajectory/edgeWidth") {
+        updateBridge({ edgeWidth: action.edgeWidth });
+        return;
+      }
+      if (action.type === "cafe/trajectory/update") {
+        updateBridge(action.patch || {});
+        return;
+      }
+
+      // Unknown action: still notify listeners for state sync
+      console.debug("CAFE host bridge: unhandled action type", action.type);
+      notifyBridge();
+    }
+  };
+
+  window.addEventListener(trajectoryUpdateEvent, function (event) {
+    const patch = event && event.detail ? event.detail : {};
+    console.debug("CAFE overlay: received trajectory update event", patch);
+    updateBridge(patch);
+  });
+
+  function mountCafePlugin() {
+    if (window.CafePlugin && typeof window.CafePlugin.mount === "function") {
+      window.CafePlugin.mount(rootId);
+    } else if (window.mountCafeApp) {
+      window.mountCafeApp(rootId);
+    } else {
+      console.error("CAFE plugin bundle loaded but mount function is missing.");
+    }
+  }
+
+  function openPanel() {
+    if (!window.jsPanel) {
+      console.error("jsPanel is not loaded.");
+      return;
+    }
+
+    const existing = document.getElementById(panelId);
+    if (existing && existing.jspanel) {
+      existing.jspanel.front();
+      return;
+    }
+
+    window.jsPanel.create({
+      id: panelId,
+      headerTitle: "CAFE Plugins",
+      theme: "primary",
+      contentSize: "780 640",
+      position: "center-top 0 64",
+      content: '<div id="' + rootId + '" style="height:100%;overflow:auto;"></div>',
+      callback: mountCafePlugin,
+      onclosed: function () {
+        if (window.CafePlugin && typeof window.CafePlugin.unmount === "function") {
+          window.CafePlugin.unmount(rootId);
+        }
+      }
+    });
+  }
+
+  function ensureLauncherButton() {
+    if (document.getElementById(launcherId)) {
+      return;
+    }
+
+    const button = document.createElement("button");
+    button.id = launcherId;
+    button.type = "button";
+    button.textContent = "Cafe Plugins";
+    button.style.position = "fixed";
+    button.style.right = "14px";
+    button.style.bottom = "16px";
+    button.style.zIndex = "9999";
+    button.style.padding = "6px 10px";
+    button.style.border = "1px solid #6a8fb2";
+    button.style.borderRadius = "4px";
+    button.style.background = "#2f6f9f";
+    button.style.color = "#fff";
+    button.style.cursor = "pointer";
+    button.title = "Open CAFE plugin window";
+    button.addEventListener("click", openPanel);
+    document.body.appendChild(button);
+  }
+
+  window.openCafePluginPanel = openPanel;
+  window.addEventListener("load", function () {
+    syncHostLayoutChoice();
+    watchHostLayoutChoice();
+    startGraphPolling();
+    refreshOverlayContext();
+    setTimeout(ensureLauncherButton, 700);
+  });
 })();
 </script>
 <!-- CAFE-PLUGIN-INJECTION END -->

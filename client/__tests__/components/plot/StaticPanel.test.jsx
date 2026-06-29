@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { Provider } from "react-redux";
 
 import { AppContext } from "../../../src/lib/appProvider";
 import StaticPanel from "../../../src/components/plot/StaticPanel";
@@ -19,24 +20,28 @@ jest.mock(
 const apiMock = require("../../../src/lib/api");
 
 function renderWithContext(overrides = {}) {
+  const state = {
+    trajectory: {
+      trajectoryName: "ref",
+      showTrajectory: false,
+      trajectoryType: "milestone",
+      nodeSize: 2.5,
+      edgeWidth: 1,
+      ...overrides.trajectory,
+    },
+    cellxgene: {
+      layoutChoice: {
+        current: "umap",
+        available: ["umap", "tsne"],
+        currentDimNames: [],
+        ...overrides.layoutChoice,
+      },
+    },
+  };
   const contextValue = {
     bridgeState: {
-      trajectory: {
-        trajectoryName: "ref",
-        showTrajectory: false,
-        trajectoryType: "milestone",
-        nodeSize: 2.5,
-        edgeWidth: 1,
-        ...overrides.trajectory,
-      },
-      cellxgene: {
-        layoutChoice: {
-          current: "umap",
-          available: ["umap", "tsne"],
-          currentDimNames: [],
-          ...overrides.layoutChoice,
-        },
-      },
+      trajectory: state.trajectory,
+      cellxgene: state.cellxgene,
     },
     context: {
       current: { trajectory: "ref", layout: "umap" },
@@ -44,11 +49,18 @@ function renderWithContext(overrides = {}) {
       ...overrides.context,
     },
   };
+  const store = {
+    getState: () => state,
+    subscribe: () => () => {},
+    dispatch: jest.fn(),
+  };
 
   return render(
-    <AppContext.Provider value={contextValue}>
-      <StaticPanel />
-    </AppContext.Provider>,
+    <Provider store={store}>
+      <AppContext.Provider value={contextValue}>
+        <StaticPanel />
+      </AppContext.Provider>
+    </Provider>,
   );
 }
 
@@ -78,12 +90,12 @@ describe("StaticPanel", () => {
 
   it("renders a refresh button", () => {
     renderWithContext();
-    expect(screen.getByText("Refresh Static Figure")).toBeInTheDocument();
+    expect(screen.getByText("Refresh")).toBeInTheDocument();
   });
 
   it("renders an image with a plot URL", () => {
     renderWithContext();
-    const img = screen.getByAltText("Static trajectory visualization");
+    const img = screen.getByAltText("Static");
     expect(img).toBeInTheDocument();
     expect(img.src).toContain("/mock/plot/static");
     expect(img.src).toContain("view=trajectory");
@@ -93,7 +105,7 @@ describe("StaticPanel", () => {
     renderWithContext();
     const graphBtn = screen.getByText("Graph");
     fireEvent.click(graphBtn);
-    const img = screen.getByAltText("Static trajectory visualization");
+    const img = screen.getByAltText("Static");
     expect(img.src).toContain("view=graph");
   });
 });

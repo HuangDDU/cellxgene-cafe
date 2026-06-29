@@ -2,6 +2,7 @@
 export const fetchManifest = jest.fn();
 export const fetchContext = jest.fn();
 export const fetchDataSummary = jest.fn();
+export const fetchCafeCache = jest.fn();
 export const fetchExplorerSummary = jest.fn();
 export const fetchMethodCatalog = jest.fn();
 export const submitMethodJob = jest.fn();

@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { Provider } from "react-redux";
 
 import { AppContext } from "../../../src/lib/appProvider";
 import DynamicPanel from "../../../src/components/plot/DynamicPanel";
@@ -21,21 +22,25 @@ jest.mock("../../../src/components/plot/DynamicPanel/TrajectoryPreview", () => (
 const { dispatchCafeAction } = require("../../../src/lib/hostBridge");
 
 function renderWithContext(bridgeStateOverrides = {}) {
+  const state = {
+    trajectory: {
+      trajectoryName: "ref",
+      available: ["ref"],
+      showTrajectory: false,
+      anchorTrajectory: false,
+      trajectoryType: "milestone",
+      nodeSize: 2.5,
+      edgeWidth: 1,
+      ...bridgeStateOverrides,
+    },
+    cellxgene: {
+      layoutChoice: { current: "umap", available: [], currentDimNames: [] },
+    },
+  };
   const contextValue = {
     bridgeState: {
-      trajectory: {
-        trajectoryName: "ref",
-        available: ["ref"],
-        showTrajectory: false,
-        anchorTrajectory: false,
-        trajectoryType: "milestone",
-        nodeSize: 2.5,
-        edgeWidth: 1,
-        ...bridgeStateOverrides,
-      },
-      cellxgene: {
-        layoutChoice: { current: "umap", available: [], currentDimNames: [] },
-      },
+      trajectory: state.trajectory,
+      cellxgene: state.cellxgene,
     },
     context: {
       current: { trajectory: "ref", layout: "umap" },
@@ -43,11 +48,18 @@ function renderWithContext(bridgeStateOverrides = {}) {
       layouts: ["umap", "tsne"],
     },
   };
+  const store = {
+    getState: () => state,
+    subscribe: () => () => {},
+    dispatch: jest.fn(),
+  };
 
   return render(
-    <AppContext.Provider value={contextValue}>
-      <DynamicPanel />
-    </AppContext.Provider>,
+    <Provider store={store}>
+      <AppContext.Provider value={contextValue}>
+        <DynamicPanel />
+      </AppContext.Provider>
+    </Provider>,
   );
 }
 
@@ -66,6 +78,13 @@ describe("DynamicPanel", () => {
     expect(
       screen.getByText(/Display trajectory dynamically on cellxgene main panel/),
     ).toBeInTheDocument();
+  });
+
+  it("places Show toggle on the same row as the note text", () => {
+    renderWithContext();
+    const row = screen.getByText(/Display trajectory dynamically on cellxgene main panel/).closest(".cafe-dynamics-note-row");
+    expect(row).toBeInTheDocument();
+    expect(row).toContainElement(screen.getByText("Show"));
   });
 
   it("renders TrajectorySetting and TrajectoryPreview", () => {

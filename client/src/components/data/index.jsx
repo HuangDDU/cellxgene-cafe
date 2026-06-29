@@ -1,33 +1,7 @@
 import React from "react";
-import { connect } from "react-redux";
 
+import { CardSection, EmptyState, InfoGrid, StatusBadge } from "../common";
 import { fetchDataSummary, fetchCafeCache, importTrajectory } from "../../lib/api";
-
-function formatTime(ts) {
-  if (!ts) return "n/a";
-  return new Date(ts * 1000).toLocaleString();
-}
-
-function CollapsibleCard({ title, defaultOpen, badge, children }) {
-  const [open, setOpen] = React.useState(defaultOpen !== false);
-  return (
-    <div className="cafe-card">
-      <div className="cafe-card-header" onClick={() => setOpen(!open)}>
-        <span className="cafe-card-chevron">{open ? "▾" : "▸"}</span>
-        <h4>{title}</h4>
-        {badge ? <span className="cafe-card-badge">{badge}</span> : null}
-      </div>
-      {open && <div className="cafe-card-body">{children}</div>}
-    </div>
-  );
-}
-
-const Info = ({ label, value }) => (
-  <div className="cafe-info-item">
-    <div className="cafe-info-label">{label}</div>
-    <div className="cafe-info-value">{value ?? "n/a"}</div>
-  </div>
-);
 
 class Data extends React.Component {
   constructor(props) {
@@ -40,7 +14,7 @@ class Data extends React.Component {
     this._loadSummary();
     this._loadCache();
   }
-  componentWillUnmount() { this._cancelled = false; }
+  componentWillUnmount() { this._cancelled = true; }
 
   async _loadSummary() {
     this.setState({ loading: true, error: "" });
@@ -88,13 +62,13 @@ class Data extends React.Component {
 
     return (
       <div>
-        <CollapsibleCard title="Prior Knowledge" defaultOpen={hasPriorInfo} badge={hasPriorInfo ? "fate-specific" : null}>
-          {!hasPriorInfo ? <div className="cafe-note">No prior knowledge recorded.</div>
+        <CardSection title="Prior Knowledge" defaultOpen={hasPriorInfo} badge={hasPriorInfo ? "fate-specific" : null}>
+          {!hasPriorInfo ? <EmptyState>No prior knowledge recorded.</EmptyState>
             : <pre className="cafe-json-block">{JSON.stringify(priorInfo, null, 2)}</pre>}
-        </CollapsibleCard>
+        </CardSection>
 
-        <CollapsibleCard title="Trajectory History" defaultOpen badge={`${trajectories.length} trajectories`}>
-          {!trajectories.length ? <div className="cafe-note">No trajectory history available.</div> : (<>
+        <CardSection title="Trajectory History" defaultOpen badge={`${trajectories.length} trajectories`}>
+          {!trajectories.length ? <EmptyState>No trajectory history available.</EmptyState> : (<>
             <div className="cafe-switch-row" style={{ marginBottom: 10 }}>
               <a className="cafe-btn cafe-btn-primary" href={exportsInfo.h5adUrl || "#"}>Export H5AD</a>
               <a className="cafe-btn cafe-btn-primary" href={exportsInfo.trajectoryPackageUrl || "#"}>Export Trajectory Package</a>
@@ -109,19 +83,21 @@ class Data extends React.Component {
               </tr>))}</tbody>
             </table></div>
           </>)}
-        </CollapsibleCard>
+        </CardSection>
 
-        <CollapsibleCard title="Cafe Cache" defaultOpen={!!cacheData?.cacheDir} badge={cacheLoading ? "..." : cacheData?.cacheDir ? "active" : "none"}>
+        <CardSection title="Cafe Cache" defaultOpen={!!cacheData?.cacheDir} badge={cacheLoading ? "..." : cacheData?.cacheDir ? "active" : "none"}>
           {importMsg && <div className={importMsg.startsWith("Import failed") ? "cafe-error" : "cafe-success"} style={{ marginBottom: 10 }}>{importMsg}</div>}
-          {!cacheData ? <div className="cafe-note">{cacheLoading ? "Loading..." : "Error loading cache."}</div>
-          : !cacheData.cacheDir ? <div className="cafe-note">{cacheData.message || "No cafe cache directory found. Set CAFE_RESULT_DIR in .env or compute trajectories first."}</div>
+          {!cacheData ? <EmptyState>{cacheLoading ? "Loading..." : "Error loading cache."}</EmptyState>
+          : !cacheData.cacheDir ? <EmptyState>{cacheData.message || "No cafe cache directory found. Set CAFE_RESULT_DIR in .env or compute trajectories first."}</EmptyState>
           : (<div>
             <div className="cafe-note" style={{ marginBottom: 8 }}>Path: {cacheData.cacheDir}</div>
-            <div className="cafe-info-grid" style={{ marginBottom: 10 }}>
-              {(cacheData.subdirs && Object.entries(cacheData.subdirs).map(([k, v]) => (
-                <Info key={k} label={k} value={`${v.length} files`} />
-              )))}
-            </div>
+            <InfoGrid
+              className="cafe-cache-grid"
+              items={Object.entries(cacheData.subdirs || {}).map(([key, value]) => ({
+                label: key,
+                value: `${value.length} files`,
+              }))}
+            />
             {/* Trajectory History import */}
             {(cacheData.trajFiles && cacheData.trajFiles.length > 0) && (<div style={{ marginTop: 10 }}>
               <div className="cafe-data-subtitle">Trajectory History (.pkl)</div>
@@ -135,53 +111,55 @@ class Data extends React.Component {
                   const imported = (cacheData.imported || []).some((n) => f.name.includes(n) || n.includes(f.name.replace(".pkl", "")));
                   return (<tr key={f.name}>
                     <td>{f.name}</td>
-                    <td>{imported ? <span className="cafe-status-badge is-succeeded">imported</span> : <span className="cafe-status-badge is-unknown">pending</span>}</td>
+                    <td>{imported ? <StatusBadge status="imported" /> : <StatusBadge status="pending" />}</td>
                     <td><button type="button" className="cafe-btn" disabled={imported} onClick={() => this._handleImport(f.name, false)}>{imported ? "Imported" : "Import"}</button></td>
                   </tr>);
                 })}</tbody>
               </table></div>
             </div>)}
           </div>)}
-        </CollapsibleCard>
+        </CardSection>
 
-        <CollapsibleCard title="Model" defaultOpen={false}>
-          <div className="cafe-info-grid">
-            <Info label="Dataset" value={dataset.name} />
-            <Info label="Shape" value={`${dataset?.shape?.nObs || 0} obs × ${dataset?.shape?.nVars || 0} vars`} />
-            <Info label="Matrix" value={`${dataset?.matrix?.dtype || "unknown"}${dataset?.matrix?.sparse ? " | sparse" : ""}`} />
-            <Info label="Default Embedding" value={embeddings.default} />
-            <Info label="Current Model" value={fateAnnData.modelName} />
-          </div>
-        </CollapsibleCard>
+        <CardSection title="Model" defaultOpen={false}>
+          <InfoGrid items={[
+            { label: "Dataset", value: dataset.name },
+            { label: "Shape", value: `${dataset?.shape?.nObs || 0} obs x ${dataset?.shape?.nVars || 0} vars` },
+            { label: "Matrix", value: `${dataset?.matrix?.dtype || "unknown"}${dataset?.matrix?.sparse ? " | sparse" : ""}` },
+            { label: "Default Embedding", value: embeddings.default },
+            { label: "Current Model", value: fateAnnData.modelName },
+          ]} />
+        </CardSection>
 
-        <CollapsibleCard title="Embeddings" defaultOpen={false}>
+        <CardSection title="Embeddings" defaultOpen={false}>
           <div className="cafe-data-section"><div className="cafe-data-subtitle">AnnData obsm basis</div>
             <div className="cafe-key-list">{(embeddings.available || []).map((item) => <span key={item} className="cafe-key-pill">{item}</span>)}</div>
           </div>
           <div className="cafe-data-section"><div className="cafe-data-subtitle">Trajectory layout basis</div>
             <div className="cafe-key-list">{(embeddings.trajectoryLayouts || []).map((item) => <span key={item} className="cafe-key-pill">{item}</span>)}</div>
           </div>
-        </CollapsibleCard>
+        </CardSection>
 
-        <CollapsibleCard title="Color Mappings" defaultOpen={false}>
-          {!colorMappings.length ? <div className="cafe-note">No color mappings found.</div>
+        <CardSection title="Color Mappings" defaultOpen={false}>
+          {!colorMappings.length ? <EmptyState>No color mappings found.</EmptyState>
             : <div className="cafe-color-grid">{colorMappings.map((m) => (<div key={m.key} className="cafe-color-card">
               <div className="cafe-color-card-head"><div className="cafe-color-key">{m.key}</div><div className="cafe-note">{m.kind} | {m.size} items</div></div>
               <div className="cafe-color-swatch-list">{(m.items || []).map((item) => (<div key={`${m.key}-${item.label}`} className="cafe-color-swatch-item">
                 <span className="cafe-color-swatch" style={{ background: item.color }} /><span className="cafe-color-label">{item.label}</span>
               </div>))}</div>
             </div>))}</div>}
-        </CollapsibleCard>
+        </CardSection>
 
-        <CollapsibleCard title="Source" defaultOpen={false}>
-          <div className="cafe-info-grid">
-            <Info label="Title" value={source.title} /><Info label="Engine" value={source.engine} />
-            <Info label="Dataset Path" value={source.datasetPath} /><Info label="Dataset File" value={source.datasetFileName} />
-          </div>
-        </CollapsibleCard>
+        <CardSection title="Source" defaultOpen={false}>
+          <InfoGrid items={[
+            { label: "Title", value: source.title },
+            { label: "Engine", value: source.engine },
+            { label: "Dataset Path", value: source.datasetPath },
+            { label: "Dataset File", value: source.datasetFileName },
+          ]} />
+        </CardSection>
       </div>
     );
   }
 }
 
-export default connect()(Data);
+export default Data;

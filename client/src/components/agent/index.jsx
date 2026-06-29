@@ -1,6 +1,8 @@
 import React from "react";
 import { connect } from "react-redux";
 
+import { CardSection } from "../common";
+
 const API_BASE = typeof window !== "undefined" && window.location.port === "3000"
   ? `http://${window.location.hostname || "localhost"}:5005/api/cafe`
   : "/api/cafe";
@@ -39,10 +41,8 @@ class Agent extends React.Component {
     const { messages, input, sending } = this.state;
     return (
       <div className="cafe-agent">
-        <div className="cafe-card"><h4>Analysis Templates</h4>
+        <CardSection title="Conversation" defaultOpen badge={`${messages.length} messages`} className="cafe-agent-chat">
           <div className="cafe-agent-templates">{ANALYSIS_TEMPLATES.map((tpl) => (<button key={tpl.id} type="button" className="cafe-chip-btn" onClick={() => this._sendMessage(tpl.prompt)}>{tpl.label}</button>))}</div>
-        </div>
-        <div className="cafe-card cafe-agent-chat"><h4>Conversation</h4>
           <div className="cafe-agent-messages">
             {!messages.length && <div className="cafe-note" style={{ textAlign: "center", padding: "20px 0" }}>Select an analysis template or type a question about cell fate trajectories.</div>}
             {messages.map((msg, i) => (<div key={i} className={`cafe-agent-msg cafe-agent-msg-${msg.role}`}><div className="cafe-agent-msg-role">{msg.role === "user" ? "You" : "Cafe Agent"}</div><div className="cafe-agent-msg-content">{msg.content}</div></div>))}
@@ -53,7 +53,7 @@ class Agent extends React.Component {
             <input type="text" className="cafe-agent-input" value={input} onChange={(e) => this.setState({ input: e.target.value })} onKeyDown={this._handleKeyDown} placeholder="Ask about cell fate analysis..." disabled={sending} />
             <button type="button" className="cafe-btn cafe-btn-primary" onClick={() => this._sendMessage()} disabled={sending || !input.trim()}>Send</button>
           </div>
-        </div>
+        </CardSection>
       </div>
     );
   }

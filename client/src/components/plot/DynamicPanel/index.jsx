@@ -3,6 +3,7 @@ import { connect } from "react-redux";
 
 import { dispatchCafeAction } from "../../../lib/hostBridge";
 import { setCafeTrajectoryVisible } from "../../../reducers/actions";
+import { CardSection } from "../../common";
 
 import TrajectoryPreview from "./TrajectoryPreview";
 import TrajectorySetting from "./TrajectorySetting";
@@ -17,9 +18,11 @@ export default class DynamicPanel extends React.Component {
     const { showTrajectory } = this.props;
 
     return (
-      <div className="cafe-card cafe-dynamics-card">
-        <div className="cafe-dynamics-header">
-          <h4>Dynamics</h4>
+      <CardSection title="Dynamics" defaultOpen badge={showTrajectory ? "shown" : "hidden"} className="cafe-dynamics-card">
+        <div className="cafe-dynamics-note-row">
+          <div className="cafe-note cafe-dynamics-note">
+            Display trajectory dynamically on cellxgene main panel.
+          </div>
           <label className="cafe-dynamics-show-toggle">
             <input
               type="checkbox"
@@ -29,14 +32,11 @@ export default class DynamicPanel extends React.Component {
             Show
           </label>
         </div>
-        <div className="cafe-note cafe-dynamics-note">
-          Display trajectory dynamically on cellxgene main panel.
-        </div>
         <div className="cafe-dynamics-layout">
           <TrajectorySetting />
           <TrajectoryPreview />
         </div>
-      </div>
+      </CardSection>
     );
   }
 }

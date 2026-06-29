@@ -7,27 +7,6 @@
   background: #f6f8fb;
 }
 
-.cafe-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid #d6dfeb;
-  padding: 10px 12px;
-  background: #edf2f8;
-}
-
-.cafe-title {
-  font-weight: 700;
-  font-size: 16px;
-}
-
-.cafe-subtitle {
-  font-size: 12px;
-  color: #5c738d;
-}
-
-.cafe-refresh-btn,
 .cafe-tab-btn,
 .cafe-btn {
   border: 1px solid #7a95b1;
@@ -54,7 +33,6 @@
   border-color: #2f6f9f;
 }
 
-.cafe-refresh-btn:hover,
 .cafe-tab-btn:hover,
 .cafe-btn:hover {
   background: #eef4fb;
@@ -103,6 +81,20 @@
   flex: 1;
   overflow: auto;
   padding: 12px;
+}
+
+.cafe-overview-strip {
+  border-bottom: 1px solid #d6dfeb;
+  background: #fbfcfe;
+  padding: 8px 12px;
+}
+
+.cafe-overview-grid {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.cafe-overview-grid .cafe-info-item {
+  padding: 7px 8px;
 }
 
 .cafe-card {
@@ -289,6 +281,13 @@
   color: #557087;
 }
 
+.cafe-empty-state {
+  border: 1px dashed #c9d6e4;
+  border-radius: 6px;
+  background: #fbfcfe;
+  padding: 10px;
+}
+
 .cafe-info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -314,6 +313,10 @@
   font-size: 13px;
   color: #24384e;
   word-break: break-word;
+}
+
+.cafe-cache-grid {
+  margin-bottom: 10px;
 }
 
 .cafe-data-section + .cafe-data-section {
@@ -490,6 +493,12 @@
   gap: 12px;
 }
 
+.cafe-method-param-group {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .cafe-field input[type="text"],
 .cafe-field input[type="number"],
 .cafe-field textarea,
@@ -543,9 +552,15 @@
   color: #0b5d8d;
 }
 
-.cafe-status-badge.is-succeeded {
+.cafe-status-badge.is-succeeded,
+.cafe-status-badge.is-imported {
   background: #e3f7e8;
   color: #216737;
+}
+
+.cafe-status-badge.is-pending {
+  background: #eef4fb;
+  color: #47607a;
 }
 
 .cafe-status-badge.is-failed,
@@ -829,6 +844,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 10px;
 }
 
 .cafe-agent-chat {
@@ -836,6 +852,12 @@
   flex-direction: column;
   flex: 1;
   min-height: 360px;
+}
+
+.cafe-agent-chat .cafe-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .cafe-agent-messages {

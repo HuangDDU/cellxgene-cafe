@@ -2,6 +2,7 @@ import React from "react";
 import { connect } from "react-redux";
 
 import { buildStaticPlotUrl } from "../../../lib/api";
+import { CardSection } from "../../common";
 
 import "./index.css";
 
@@ -18,8 +19,7 @@ export default class StaticPanel extends React.Component {
     const url = buildStaticPlotUrl({ view: staticView, trajectory: currentTrajectory, layout: currentLayout, t: imageSeed });
 
     return (
-      <div className="cafe-card cafe-static-card">
-        <h4>Static</h4>
+      <CardSection title="Static" defaultOpen badge={staticView} className="cafe-static-card">
         <div className="cafe-note cafe-static-note">Static figures rendered by cafe.plot.</div>
         <div className="cafe-switch-row cafe-static-switches">
           <span className="cafe-note">Static View:</span>
@@ -32,7 +32,7 @@ export default class StaticPanel extends React.Component {
           <button type="button" className="cafe-btn" onClick={() => this.setState((s) => ({ imageSeed: s.imageSeed + 1 }))}>Refresh</button>
         </div>
         <div className="cafe-static-image-wrap"><img className="cafe-static-image" src={url} alt="Static" /></div>
-      </div>
+      </CardSection>
     );
   }
 }

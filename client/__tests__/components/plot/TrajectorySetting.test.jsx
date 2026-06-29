@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { Provider } from "react-redux";
 
 import { AppContext } from "../../../src/lib/appProvider";
 import TrajectorySetting from "../../../src/components/plot/DynamicPanel/TrajectorySetting";
@@ -12,25 +13,29 @@ jest.mock("../../../src/lib/hostBridge", () => ({
 const { dispatchCafeAction } = require("../../../src/lib/hostBridge");
 
 function renderWithContext(overrides = {}) {
+  const state = {
+    trajectory: {
+      trajectoryName: "ref",
+      available: ["ref", "palantir"],
+      showTrajectory: false,
+      trajectoryType: "milestone",
+      nodeSize: 2.5,
+      edgeWidth: 1,
+      ...overrides.trajectory,
+    },
+    cellxgene: {
+      layoutChoice: {
+        current: "umap",
+        available: ["umap", "tsne", "pca"],
+        currentDimNames: ["UMAP_1", "UMAP_2"],
+        ...overrides.layoutChoice,
+      },
+    },
+  };
   const contextValue = {
     bridgeState: {
-      trajectory: {
-        trajectoryName: "ref",
-        available: ["ref", "palantir"],
-        showTrajectory: false,
-        trajectoryType: "milestone",
-        nodeSize: 2.5,
-        edgeWidth: 1,
-        ...overrides.trajectory,
-      },
-      cellxgene: {
-        layoutChoice: {
-          current: "umap",
-          available: ["umap", "tsne", "pca"],
-          currentDimNames: ["UMAP_1", "UMAP_2"],
-          ...overrides.layoutChoice,
-        },
-      },
+      trajectory: state.trajectory,
+      cellxgene: state.cellxgene,
     },
     context: {
       current: { trajectory: "ref", layout: "umap" },
@@ -39,11 +44,18 @@ function renderWithContext(overrides = {}) {
       ...overrides.context,
     },
   };
+  const store = {
+    getState: () => state,
+    subscribe: () => () => {},
+    dispatch: jest.fn(),
+  };
 
   return render(
-    <AppContext.Provider value={contextValue}>
-      <TrajectorySetting />
-    </AppContext.Provider>,
+    <Provider store={store}>
+      <AppContext.Provider value={contextValue}>
+        <TrajectorySetting />
+      </AppContext.Provider>
+    </Provider>,
   );
 }
 

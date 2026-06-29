@@ -1,6 +1,7 @@
 import React from "react";
 import { connect } from "react-redux";
 
+import { CardSection, StatusBadge } from "../common";
 import { cancelMethodJob, fetchMethodCatalog, fetchMethodJobLogs, fetchMethodJobResult, queryMethodJob, submitMethodJob } from "../../lib/api";
 
 function buildDefaultValues(schema = []) {
@@ -25,16 +26,15 @@ function parseParameterValue(field, rawValue) {
   return rawValue;
 }
 
-function StatusBadge({ status }) { return <span className={`cafe-status-badge is-${status || "unknown"}`}>{status || "unknown"}</span>; }
-
 function Toast({ message, type, onClose }) { if (!message) return null; React.useEffect(() => { const t = setTimeout(onClose, 6000); return () => clearTimeout(t); }, [message]); return <div className={`cafe-toast cafe-toast-${type || "info"}`} onClick={onClose}>{message}</div>; }
 
 function ParamField({ field, value, onChange }) {
-  if (field.name === "runtime") { const runtimes = field.availableRuntimes || []; if (!runtimes.length) return null; return (<div className="cafe-field"><label>{field.label || "Runtime"}{field.required ? " *" : ""}</label><select value={value || runtimes[0]?.key || ""} onChange={(e) => onChange(e.target.value)}>{runtimes.map((r) => (<option key={r.key} value={r.key}>{r.label || r.key}</option>))}</select>{field.description && <div className="cafe-note">{field.description}</div>}</div>); }
+  const fieldId = `method-param-${field.name}`;
+  if (field.name === "runtime") { const runtimes = field.availableRuntimes || []; if (!runtimes.length) return null; return (<div className="cafe-field"><label htmlFor={fieldId}>{field.label || "Runtime"}{field.required ? " *" : ""}</label><select id={fieldId} value={value || runtimes[0]?.key || ""} onChange={(e) => onChange(e.target.value)}>{runtimes.map((r) => (<option key={r.key} value={r.key}>{r.label || r.key}</option>))}</select>{field.description && <div className="cafe-note">{field.description}</div>}</div>); }
   if (field.inputKind === "boolean") return (<div className="cafe-field cafe-checkbox-field"><label><input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />{" "}{field.label || field.name}{field.required ? " *" : ""}</label>{field.description && <div className="cafe-note">{field.description}</div>}</div>);
-  if (field.inputKind === "choice" && field.choices?.length) return (<div className="cafe-field"><label>{field.label || field.name}{field.required ? " *" : ""}</label><select value={value || ""} onChange={(e) => onChange(e.target.value)}>{field.choices.map((c) => (<option key={c} value={c}>{c}</option>))}</select>{field.description && <div className="cafe-note">{field.description}</div>}</div>);
-  if (field.inputKind === "json") return (<div className="cafe-field"><label>{field.label || field.name}{field.required ? " *" : ""}</label><textarea rows={4} value={value || ""} onChange={(e) => onChange(e.target.value)} />{field.description && <div className="cafe-note">{field.description}</div>}</div>);
-  return (<div className="cafe-field"><label>{field.label || field.name}{field.required ? " *" : ""}</label><input type={field.inputKind === "number" ? "number" : "text"} value={value ?? ""} onChange={(e) => onChange(e.target.value)} step={field.step || "any"} min={field.min} max={field.max} />{field.description && <div className="cafe-note">{field.description}</div>}</div>);
+  if (field.inputKind === "choice" && field.choices?.length) return (<div className="cafe-field"><label htmlFor={fieldId}>{field.label || field.name}{field.required ? " *" : ""}</label><select id={fieldId} value={value || ""} onChange={(e) => onChange(e.target.value)}>{field.choices.map((c) => (<option key={c} value={c}>{c}</option>))}</select>{field.description && <div className="cafe-note">{field.description}</div>}</div>);
+  if (field.inputKind === "json") return (<div className="cafe-field"><label htmlFor={fieldId}>{field.label || field.name}{field.required ? " *" : ""}</label><textarea id={fieldId} rows={4} value={value || ""} onChange={(e) => onChange(e.target.value)} />{field.description && <div className="cafe-note">{field.description}</div>}</div>);
+  return (<div className="cafe-field"><label htmlFor={fieldId}>{field.label || field.name}{field.required ? " *" : ""}</label><input id={fieldId} type={field.inputKind === "number" ? "number" : "text"} value={value ?? ""} onChange={(e) => onChange(e.target.value)} step={field.step || "any"} min={field.min} max={field.max} />{field.description && <div className="cafe-note">{field.description}</div>}</div>);
 }
 
 class Method extends React.Component {
@@ -66,30 +66,39 @@ class Method extends React.Component {
     const runtimes = selectedMethod?.availableRuntimes || [];
 
     return (<div><Toast message={toastMsg} type={toastType} onClose={() => this.setState({ toastMsg: "" })} />
-      <div className="cafe-card"><h4>Method</h4>
+      <CardSection title="Method" defaultOpen badge={selectedMethod?.status || null}>
         {!methods.length ? <div className="cafe-note">No methods registered.</div> : (<div className="cafe-method-selector">
           <div className="cafe-field"><label htmlFor="method-select">Select method</label>
             <select id="method-select" value={selectedMethodKey} onChange={(e) => this._selectMethod(e.target.value)}>
               {methods.map((m) => (<option key={m.key} value={m.key}>{m.label || m.key}</option>))}
             </select></div>
           {selectedMethod && <div className="cafe-note" style={{ marginTop: 8 }}>{selectedMethod.description || ""}{selectedMethod.status && <span style={{ marginLeft: 10 }}><StatusBadge status={selectedMethod.status} /></span>}</div>}
-        </div>)}</div>
+        </div>)}
+      </CardSection>
 
-      {selectedMethod && (<div className="cafe-card"><h4>Parameters</h4>
-        <div className="cafe-method-form-grid">
-          {runtimes.length > 0 && <ParamField field={{ name: "runtime", label: "Runtime", description: "Execution environment", availableRuntimes: runtimes }} value={formValues.runtime} onChange={(v) => this.setState((prev) => ({ formValues: { ...prev.formValues, runtime: v } }))} />}
-          {schema.map((field) => (<ParamField key={field.name} field={field} value={formValues[field.name]} onChange={(v) => this.setState((prev) => ({ formValues: { ...prev.formValues, [field.name]: v } }))} />))}
+      {selectedMethod && (<CardSection title="Parameters" defaultOpen badge={`${schema.length + (runtimes.length ? 1 : 0)} fields`}>
+        {runtimes.length > 0 && <div className="cafe-method-param-group">
+          <div className="cafe-data-subtitle">Runtime</div>
+          {/* <div className="cafe-method-form-grid">
+            <ParamField field={{ name: "runtime", label: "Runtime", description: "Execution environment", availableRuntimes: runtimes }} value={formValues.runtime} onChange={(v) => this.setState((prev) => ({ formValues: { ...prev.formValues, runtime: v } }))} />
+          </div> */}
+        </div>}
+        <div className="cafe-method-param-group">
+          <div className="cafe-data-subtitle">Method Parameters</div>
+          <div className="cafe-method-form-grid">
+            {schema.map((field) => (<ParamField key={field.name} field={field} value={formValues[field.name]} onChange={(v) => this.setState((prev) => ({ formValues: { ...prev.formValues, [field.name]: v } }))} />))}
+          </div>
         </div>
         {submitError && <div className="cafe-error">{submitError}</div>}
         <div className="cafe-form-actions"><button type="button" className="cafe-btn cafe-btn-primary" onClick={this._handleSubmit} disabled={submitting}>{submitting ? "Submitting..." : "Submit Job"}</button></div>
-      </div>)}
+      </CardSection>)}
 
-      {job && (<div className="cafe-card"><h4>Job</h4>
+      {job && (<CardSection title="Job" defaultOpen badge={job.status}>
         <div className="cafe-method-job-info"><div><strong>ID:</strong> {job.jobId}</div><div><strong>Status:</strong> <StatusBadge status={job.status} /></div>{job.message && <div><strong>Message:</strong> {job.message}</div>}{job.progress !== undefined && <div><strong>Progress:</strong> {job.progress}% {job.stage ? `(${job.stage})` : ""}</div>}</div>
         <div className="cafe-switch-row" style={{ marginTop: 8 }}><button type="button" className="cafe-btn" onClick={this._handleFetchLogs}>Logs</button><button type="button" className="cafe-btn" onClick={this._handleFetchResult}>Result</button>{["queued", "running"].includes(job.status) && <button type="button" className="cafe-btn" onClick={this._handleCancel}>Cancel</button>}</div>
         {jobLogs && <pre className="cafe-json-block" style={{ marginTop: 10 }}>{jobLogs}</pre>}
         {jobResult && <pre className="cafe-json-block" style={{ marginTop: 10 }}>{JSON.stringify(jobResult, null, 2)}</pre>}
-      </div>)}
+      </CardSection>)}
     </div>);
   }
 }

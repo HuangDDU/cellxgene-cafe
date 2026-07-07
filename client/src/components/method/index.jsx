@@ -26,7 +26,56 @@ function parseParameterValue(field, rawValue) {
   return rawValue;
 }
 
-function Toast({ message, type, onClose }) { if (!message) return null; React.useEffect(() => { const t = setTimeout(onClose, 6000); return () => clearTimeout(t); }, [message]); return <div className={`cafe-toast cafe-toast-${type || "info"}`} onClick={onClose}>{message}</div>; }
+function submissionErrorMessage(err) {
+  return err?.response?.data?.message || err?.response?.data?.error || err?.message || "Submission failed";
+}
+
+function Toast({ message, type, onClose }) { React.useEffect(() => { if (!message) return undefined; const t = setTimeout(onClose, 6000); return () => clearTimeout(t); }, [message]); if (!message) return null; return <div className={`cafe-toast cafe-toast-${type || "info"}`} onClick={onClose}>{message}</div>; }
+
+function TaskProgressDialog({ job, submitting, onClose }) {
+  if (!submitting && !job) return null;
+  const progress = Math.max(0, Math.min(100, Number(job?.progress ?? (submitting ? 5 : 0))));
+  const status = job?.status || (submitting ? "submitting" : "pending");
+  return (
+    <div className="cafe-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="method-task-title">
+      <div className="cafe-modal">
+        <div className="cafe-modal-header">
+          <h4 id="method-task-title">Task Progress</h4>
+          <button type="button" className="cafe-icon-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="cafe-method-progress-meta">
+          <span>{job?.jobId || "Submitting job..."}</span>
+          <StatusBadge status={status} />
+        </div>
+        <div className="cafe-progress-track" aria-label="Task progress">
+          <div className="cafe-progress-fill" style={{ width: `${progress}%` }} />
+        </div>
+        <div className="cafe-method-progress-footer">
+          <span>{progress}%</span>
+          {job?.message ? <span>{job.message}</span> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ErrorDialog({ message, onClose }) {
+  if (!message) return null;
+  return (
+    <div className="cafe-modal-backdrop" role="alertdialog" aria-modal="true" aria-labelledby="method-error-title">
+      <div className="cafe-modal cafe-modal-error">
+        <div className="cafe-modal-header">
+          <h4 id="method-error-title">Submission Error</h4>
+          <button type="button" className="cafe-icon-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="cafe-error">{message}</div>
+        <div className="cafe-form-actions">
+          <button type="button" className="cafe-btn cafe-btn-primary" onClick={onClose}>OK</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ParamField({ field, value, onChange }) {
   const fieldId = `method-param-${field.name}`;
@@ -38,7 +87,7 @@ function ParamField({ field, value, onChange }) {
 }
 
 class Method extends React.Component {
-  constructor(props) { super(props); this.state = { catalog: null, loading: true, error: "", selectedMethodKey: "", formValues: {}, submitError: "", submitting: false, job: null, jobLogs: "", jobResult: null, toastMsg: "", toastType: "info" }; this._cancelled = false; this._pollTimer = null; }
+  constructor(props) { super(props); this.state = { catalog: null, loading: true, error: "", selectedMethodKey: "", formValues: {}, submitError: "", submitting: false, job: null, jobLogs: "", jobResult: null, toastMsg: "", toastType: "info", taskDialogOpen: false, errorDialog: "" }; this._cancelled = false; this._pollTimer = null; }
 
   componentDidMount() { this._loadCatalog(); }
   componentWillUnmount() { this._cancelled = true; if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; } }
@@ -47,16 +96,16 @@ class Method extends React.Component {
 
   _selectMethod = (key) => { const method = this.state.catalog?.methods?.find((m) => m.key === key); if (!method) return; const vals = buildDefaultValues(method.schema); vals.runtime = method.defaultRuntime || method.availableRuntimes?.[0]?.key || ""; this.setState({ selectedMethodKey: key, formValues: vals, submitError: "", job: null, jobLogs: "", jobResult: null }); };
 
-  _handleSubmit = async () => { const { selectedMethodKey, formValues } = this.state; const method = this.state.catalog?.methods?.find((m) => m.key === selectedMethodKey); if (!method) return; this.setState({ submitError: "", submitting: true }); try { const params = {}; (method.schema || []).forEach((field) => { if (field.name === "runtime") return; const val = formValues[field.name]; if (val === "" || val === null || val === undefined) { if (field.required) throw new Error(`Parameter '${field.name}' is required.`); return; } params[field.name] = parseParameterValue(field, val); }); const runtime = formValues.runtime || method.defaultRuntime || method.availableRuntimes?.[0]?.key || ""; const job = await submitMethodJob({ method: selectedMethodKey, runtime, params }); if (this._cancelled) return; this.setState({ job, submitting: false, toastMsg: `Job ${job?.jobId} submitted`, toastType: "info" }); this._startPolling(job?.jobId); } catch (err) { if (!this._cancelled) this.setState({ submitError: err?.message || "Submission failed", submitting: false, toastMsg: `Failed: ${err?.message}`, toastType: "error" }); } };
+  _handleSubmit = async () => { const { selectedMethodKey, formValues } = this.state; const method = this.state.catalog?.methods?.find((m) => m.key === selectedMethodKey); if (!method) return; this.setState({ submitError: "", submitting: true, taskDialogOpen: true, errorDialog: "" }); try { const params = {}; (method.schema || []).forEach((field) => { if (field.name === "runtime") return; const val = formValues[field.name]; if (val === "" || val === null || val === undefined) { if (field.required) throw new Error(`Parameter '${field.name}' is required.`); return; } params[field.name] = parseParameterValue(field, val); }); const runtime = formValues.runtime || method.defaultRuntime || method.availableRuntimes?.[0]?.key || ""; const job = await submitMethodJob({ methodName: selectedMethodKey, backendName: runtime, parameters: params, trajectoryId: selectedMethodKey }); if (this._cancelled) return; this.setState({ job, submitting: false, toastMsg: `Job ${job?.jobId} submitted`, toastType: "info" }); this._startPolling(job?.jobId); } catch (err) { const message = submissionErrorMessage(err); if (!this._cancelled) this.setState({ submitError: message, submitting: false, taskDialogOpen: false, errorDialog: message, toastMsg: `Failed: ${message}`, toastType: "error" }); } };
 
-  _startPolling(jobId) { if (this._pollTimer) clearInterval(this._pollTimer); this._pollTimer = setInterval(async () => { try { const snapshot = await queryMethodJob(jobId); if (this._cancelled) return; this.setState({ job: snapshot }); if (snapshot.status === "completed" || snapshot.status === "succeeded") { clearInterval(this._pollTimer); this._pollTimer = null; this.setState({ toastMsg: `Job ${jobId} completed`, toastType: "success" }); } else if (snapshot.status === "failed" || snapshot.status === "cancelled") { clearInterval(this._pollTimer); this._pollTimer = null; this.setState({ toastMsg: `Job ${jobId} ${snapshot.status}`, toastType: "error" }); } } catch (e) { /* ignore */ } }, 1500); }
+  _startPolling(jobId) { if (this._pollTimer) clearInterval(this._pollTimer); this._pollTimer = setInterval(async () => { try { const snapshot = await queryMethodJob(jobId); if (this._cancelled) return; this.setState({ job: snapshot }); if (snapshot.status === "completed" || snapshot.status === "succeeded") { clearInterval(this._pollTimer); this._pollTimer = null; this.setState({ toastMsg: `Job ${jobId} completed`, toastType: "success" }); } else if (snapshot.status === "failed" || snapshot.status === "cancelled") { clearInterval(this._pollTimer); this._pollTimer = null; this.setState({ taskDialogOpen: false, errorDialog: snapshot.error || snapshot.message || `Job ${jobId} ${snapshot.status}`, toastMsg: `Job ${jobId} ${snapshot.status}`, toastType: "error" }); } } catch (e) { /* ignore */ } }, 1500); }
 
   _handleCancel = async () => { const { job } = this.state; if (!job?.jobId) return; try { await cancelMethodJob(job.jobId); } catch (e) {} };
   _handleFetchLogs = async () => { const { job } = this.state; if (!job?.jobId) return; try { const logs = await fetchMethodJobLogs(job.jobId); if (!this._cancelled) this.setState({ jobLogs: logs }); } catch (e) {} };
   _handleFetchResult = async () => { const { job } = this.state; if (!job?.jobId) return; try { const result = await fetchMethodJobResult(job.jobId); if (!this._cancelled) this.setState({ jobResult: result }); } catch (e) {} };
 
   render() {
-    const { catalog, loading, error, selectedMethodKey, formValues, submitError, submitting, job, jobLogs, jobResult, toastMsg, toastType } = this.state;
+    const { catalog, loading, error, selectedMethodKey, formValues, submitError, submitting, job, jobLogs, jobResult, toastMsg, toastType, taskDialogOpen, errorDialog } = this.state;
     if (loading) return <div className="cafe-loading">Loading method catalog...</div>;
     if (error) return <div className="cafe-error">{error}</div>;
 
@@ -66,6 +115,8 @@ class Method extends React.Component {
     const runtimes = selectedMethod?.availableRuntimes || [];
 
     return (<div><Toast message={toastMsg} type={toastType} onClose={() => this.setState({ toastMsg: "" })} />
+      <TaskProgressDialog job={taskDialogOpen ? job : null} submitting={submitting} onClose={() => this.setState({ taskDialogOpen: false })} />
+      <ErrorDialog message={errorDialog} onClose={() => this.setState({ errorDialog: "" })} />
       <CardSection title="Method" defaultOpen badge={selectedMethod?.status || null}>
         {!methods.length ? <div className="cafe-note">No methods registered.</div> : (<div className="cafe-method-selector">
           <div className="cafe-field"><label htmlFor="method-select">Select method</label>
@@ -79,9 +130,9 @@ class Method extends React.Component {
       {selectedMethod && (<CardSection title="Parameters" defaultOpen badge={`${schema.length + (runtimes.length ? 1 : 0)} fields`}>
         {runtimes.length > 0 && <div className="cafe-method-param-group">
           <div className="cafe-data-subtitle">Runtime</div>
-          {/* <div className="cafe-method-form-grid">
+          <div className="cafe-method-form-grid">
             <ParamField field={{ name: "runtime", label: "Runtime", description: "Execution environment", availableRuntimes: runtimes }} value={formValues.runtime} onChange={(v) => this.setState((prev) => ({ formValues: { ...prev.formValues, runtime: v } }))} />
-          </div> */}
+          </div>
         </div>}
         <div className="cafe-method-param-group">
           <div className="cafe-data-subtitle">Method Parameters</div>

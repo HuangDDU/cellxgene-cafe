@@ -69,6 +69,17 @@ describe("TrajectorySetting", () => {
     expect(screen.getByText("Trajectory Setting")).toBeInTheDocument();
   });
 
+  it("collapses and expands the settings body from the heading button", () => {
+    renderWithContext();
+    const toggle = screen.getByRole("button", { name: /Trajectory Setting/ });
+
+    expect(screen.getByLabelText("Method / Trajectory")).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.queryByLabelText("Method / Trajectory")).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.getByLabelText("Method / Trajectory")).toBeInTheDocument();
+  });
+
   describe("Method/Trajectory dropdown", () => {
     it("renders with current trajectory selected", () => {
       renderWithContext();

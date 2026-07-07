@@ -27,7 +27,60 @@ See [CLAUDE.md](./CLAUDE.md) for architecture details, Redux patterns, and devel
 - `plugin-manifest`: manifest example and schema.
 - `gateway`: placeholder for multi-dataset control plane.
 
-## One-Command Install Into Target Cellxgene Environment
+## Non-Invasive Runtime Launch
+
+Prefer this mode for real users. It keeps the native `cellxgene launch` command and the installed Cellxgene package unchanged.
+
+Install from PyPI after the package is published:
+
+```bash
+pip install cellxgene-cafe
+```
+
+`cellxgene-cafe` does not install or pin `cellxgene` itself. Install Cellxgene in the same Python environment first, then launch CAFE against that native installation:
+
+```bash
+cellxgene-cafe launch /path/to/dataset.h5ad --port 5005
+```
+
+Run from this repository:
+
+```bash
+./scripts/cellxgene-cafe launch /path/to/dataset.h5ad --port 5005
+```
+
+Or, after installing this package so the console script is available:
+
+```bash
+cellxgene-cafe launch /path/to/dataset.h5ad --port 5005
+```
+
+The launcher:
+
+1. Resolves the native Cellxgene install tree.
+2. Copies it into a temporary overlay directory.
+3. Injects CAFE backend/frontend hooks only into that overlay.
+4. Starts `cellxgene launch ...` with the overlay at the front of `PYTHONPATH`.
+
+Useful options:
+
+- `--cafe-keep-overlay`: keep the temporary overlay after Cellxgene exits for inspection.
+- `--cafe-host-root /path/to/cellxgene/root`: use an explicit native Cellxgene package root.
+- `--cafe-python /path/to/python`: resolve Cellxgene from a specific Python environment.
+- `--cafe-bundle /path/to/cafe-plugin.js`: use a specific prebuilt plugin bundle.
+- `--cafe-dry-run`: print the resolved host root, overlay root, command, and `PYTHONPATH` without launching.
+
+## PyPI Release
+
+Build and inspect the distributable package locally:
+
+```bash
+python -m pip wheel . --no-deps --no-build-isolation -w dist-pypi
+```
+
+The wheel includes the CAFE runtime assets under `cellxgene_cafe/assets/` and exposes the `cellxgene-cafe` console command. It intentionally does not declare `cellxgene` as a dependency, so users keep control of their native Cellxgene version.
+
+## Legacy Install Into Target Cellxgene Environment
 
 Run inside `cafe-cellxgene/cellxgene-cafe`:
 
@@ -48,7 +101,7 @@ Optional environment overrides:
 - `CELLXGENE_PYTHON`: explicit Python path for host resolution.
 - `CELLXGENE_HOST_ROOT`: explicit host package root.
 
-After installation, start Cellxgene as usual.
+After installation, start Cellxgene as usual. This mode writes into the target Cellxgene package path; use `cellxgene-cafe launch` above when you need native Cellxgene to remain untouched.
 
 ## Developer Mode (Live Frontend + React/Redux Devtools)
 

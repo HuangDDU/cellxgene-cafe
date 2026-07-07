@@ -47,15 +47,33 @@ function WaypointSVG({ preview, width, height, nodeSize, edgeWidth }) {
   edgeWidth: Number(state.trajectory?.edgeWidth ?? 1),
 }))
 export default class TrajectoryPreview extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { open: true };
+  }
+
   render() {
     const { preview, trajectoryType, nodeSize, edgeWidth } = this.props;
+    const { open } = this.state;
     const nodes = preview?.nodes || [], W = 340, H = 280;
     return (
       <div className="cafe-dynamics-preview-panel">
-        <h4 className="cafe-subsection-title">Trajectory Preview</h4>
-        {!nodes.length ? <div className="cafe-note">No preview data for current trajectory/layout.</div>
-          : trajectoryType === "waypoint" ? <WaypointSVG preview={preview} width={W} height={H} nodeSize={nodeSize} edgeWidth={edgeWidth} />
-          : <MilestoneSVG preview={preview} width={W} height={H} nodeSize={nodeSize} edgeWidth={edgeWidth} />}
+        <button
+          type="button"
+          className="cafe-dynamics-panel-header"
+          aria-expanded={open}
+          onClick={() => this.setState((state) => ({ open: !state.open }))}
+        >
+          <span className="cafe-card-chevron">{open ? "▾" : "▸"}</span>
+          <span className="cafe-subsection-title">Trajectory Preview</span>
+        </button>
+        {open ? (
+          <div className="cafe-dynamics-panel-body">
+            {!nodes.length ? <div className="cafe-note">No preview data for current trajectory/layout.</div>
+              : trajectoryType === "waypoint" ? <WaypointSVG preview={preview} width={W} height={H} nodeSize={nodeSize} edgeWidth={edgeWidth} />
+              : <MilestoneSVG preview={preview} width={W} height={H} nodeSize={nodeSize} edgeWidth={edgeWidth} />}
+          </div>
+        ) : null}
       </div>
     );
   }

@@ -10,39 +10,86 @@ const api = axios.create({
   baseURL,
 });
 
+const getCache = new Map();
+const GET_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function cacheKey(path, params = {}) {
+  const query = new URLSearchParams();
+  Object.keys(params || {}).sort().forEach((key) => {
+    const value = params[key];
+    if (value === undefined || value === null) {
+      return;
+    }
+    query.set(key, String(value));
+  });
+  const suffix = query.toString();
+  return suffix ? `${path}?${suffix}` : path;
+}
+
+async function cachedGet(path, params = {}) {
+  const key = cacheKey(path, params);
+  const cached = getCache.get(key);
+  if (cached && Date.now() - cached.startedAt < GET_CACHE_TTL_MS) {
+    return cached.request;
+  }
+  if (cached) {
+    getCache.delete(key);
+  }
+
+  const requestArgs = Object.keys(params || {}).length ? [path, { params }] : [path];
+  const request = api.get(...requestArgs)
+    .then((response) => response.data)
+    .catch((error) => {
+      getCache.delete(key);
+      throw error;
+    });
+  getCache.set(key, { request, startedAt: Date.now() });
+  return request;
+}
+
+export function clearCafeApiCache() {
+  getCache.clear();
+}
+
 export async function fetchManifest() {
-  const response = await api.get("/manifest");
-  return response.data;
+  return cachedGet("/manifest");
 }
 
 export async function fetchContext(params = {}) {
-  const response = await api.get("/context", { params });
-  return response.data;
+  return cachedGet("/context", params);
 }
 
 export async function fetchDataSummary() {
-  const response = await api.get("/data/summary");
-  return response.data;
+  return cachedGet("/data/summary");
 }
 
 export async function fetchCafeCache() {
-  const response = await api.get("/data/cafe-cache");
-  return response.data;
+  return cachedGet("/data/cafe-cache");
 }
 
 export async function importTrajectory(name, importAll) {
   const response = await api.post("/data/import-trajectory", { name, all: importAll });
+  clearCafeApiCache();
   return response.data;
 }
 
 export async function fetchExplorerSummary(params = {}) {
-  const response = await api.get("/explorer/summary", { params });
-  return response.data;
+  return cachedGet("/explorer/summary", params);
 }
 
 export async function fetchMethodCatalog() {
-  const response = await api.get("/method/catalog");
-  return response.data;
+  return cachedGet("/method/catalog");
+}
+
+export async function prefetchModuleData(selection = {}) {
+  const trajectory = selection.trajectory || "";
+  const layout = selection.layout || "";
+  return Promise.allSettled([
+    fetchDataSummary(),
+    fetchCafeCache(),
+    fetchMethodCatalog(),
+    fetchExplorerSummary({ trajectory, layout, includeHeavy: "0" }),
+  ]);
 }
 
 export async function submitMethodJob(payload) {

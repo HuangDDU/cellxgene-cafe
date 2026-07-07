@@ -31,17 +31,17 @@ const CafeOverviewStrip = connect((state) => ({
   </div>
 ));
 
+export function ModuleDispatcherBase({ activeTab }) {
+  if (activeTab === "data") return <Data />;
+  if (activeTab === "method") return <Method />;
+  if (activeTab === "explorer") return <Explorer active />;
+  if (activeTab === "agent") return <Agent />;
+  return <Plot />;
+}
+
 const ModuleDispatcher = connect((state) => ({
   activeTab: state.context?.activeTab,
-}))(({ activeTab }) => (
-  <div>
-    <div style={{ display: activeTab === "plot" ? "block" : "none" }}><Plot /></div>
-    <div style={{ display: activeTab === "data" ? "block" : "none" }}><Data /></div>
-    <div style={{ display: activeTab === "method" ? "block" : "none" }}><Method /></div>
-    <div style={{ display: activeTab === "explorer" ? "block" : "none" }}><Explorer /></div>
-    <div style={{ display: activeTab === "agent" ? "block" : "none" }}><Agent /></div>
-  </div>
-));
+}))(ModuleDispatcherBase);
 
 export default class App extends React.Component {
   static contextType = AppContext;

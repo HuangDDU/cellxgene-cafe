@@ -358,7 +358,11 @@ def _compute_gene_set_fallback(driver_genes: Dict[str, Any], categories: List[st
         ),
     }
 
-def _build_integration_status(trajectory_history: Dict[str, Any], driver_genes: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+def _build_integration_status(
+    trajectory_history: Dict[str, Any],
+    driver_genes: Dict[str, Any] = None,
+    allow_computed_fallback: bool = True,
+) -> List[Dict[str, Any]]:
     driver_genes = driver_genes or {}
     configs = [
         {
@@ -387,7 +391,7 @@ def _build_integration_status(trajectory_history: Dict[str, Any], driver_genes: 
     items = []
     for config in configs:
         count = _integration_payload_count(trajectory_history, config["payloadKeys"])
-        fallback = {} if count > 0 else config["fallback"]()
+        fallback = {} if count > 0 or not allow_computed_fallback else config["fallback"]()
         items.append(
             {
                 "key": config["key"],
@@ -399,7 +403,11 @@ def _build_integration_status(trajectory_history: Dict[str, Any], driver_genes: 
                 "message": (
                     f"Found {count} existing {config['label']} payload item{'s' if count != 1 else ''}."
                     if count > 0
-                    else fallback.get("message") or config["emptyMessage"]
+                    else fallback.get("message") or (
+                        "Computed fallback is deferred until Explorer details finish loading."
+                        if not allow_computed_fallback
+                        else config["emptyMessage"]
+                    )
                 ),
             }
         )
@@ -1125,6 +1133,7 @@ def _build_explorer_summary(
     requested_layout: str = "",
     selected_genes: List[str] = None,
     gene_query: str = "",
+    include_heavy: bool = True,
 ) -> Dict[str, Any]:
     _, trajectory_history = _load_effective_trajectory_history()
     trajectory_name, layout_name, entry, trajectory_names, layout_names = _resolve_selection(
@@ -1132,8 +1141,17 @@ def _build_explorer_summary(
         requested_trajectory,
         requested_layout,
     )
-    metric_status = _ensure_explorer_benchmark_metrics(trajectory_history)
-    if metric_status.get("calculated"):
+    if include_heavy:
+        metric_status = _ensure_explorer_benchmark_metrics(trajectory_history)
+    else:
+        metric_status = {
+            "attempted": False,
+            "calculated": [],
+            "skipped": [],
+            "message": "Benchmark metric calculation is deferred for the lightweight Explorer summary.",
+        }
+
+    if include_heavy and metric_status.get("calculated"):
         _, trajectory_history = _load_effective_trajectory_history()
         trajectory_name, layout_name, entry, trajectory_names, layout_names = _resolve_selection(
             trajectory_history,
@@ -1142,7 +1160,17 @@ def _build_explorer_summary(
         )
     benchmark_rows, metric_keys = _build_benchmark_rows(trajectory_history)
     gene_selection = _search_explorer_gene_names(gene_query, selected_genes)
-    driver_genes = _compute_selected_driver_genes(trajectory_history, trajectory_name)
+
+    if include_heavy:
+        driver_genes = _compute_selected_driver_genes(trajectory_history, trajectory_name)
+    else:
+        driver_genes = {
+            "available": False,
+            "items": [],
+            "sourceKeys": [],
+            "message": "Driver gene calculation is deferred for the lightweight Explorer summary.",
+        }
+
     if not driver_genes.get("available"):
         computed_driver_genes = driver_genes
         driver_genes = _extract_driver_genes(trajectory_history)
@@ -1151,12 +1179,22 @@ def _build_explorer_summary(
                 f"{driver_genes['message']} "
                 f"Computed fallback also failed: {computed_driver_genes['message']}"
             )
-    gene_trends = _compute_selected_gene_trends(
-        trajectory_history,
-        trajectory_name,
-        driver_genes,
-        selected_genes=gene_selection["selectedGenes"],
-    )
+
+    if include_heavy:
+        gene_trends = _compute_selected_gene_trends(
+            trajectory_history,
+            trajectory_name,
+            driver_genes,
+            selected_genes=gene_selection["selectedGenes"],
+        )
+    else:
+        gene_trends = {
+            "available": False,
+            "series": [],
+            "sourceKeys": [],
+            "message": "Gene trend calculation is deferred for the lightweight Explorer summary.",
+        }
+
     if not gene_trends.get("available"):
         computed_gene_trends = gene_trends
         gene_trends = _extract_gene_trends(trajectory_history)
@@ -1186,6 +1224,10 @@ def _build_explorer_summary(
         "driverGenes": driver_genes,
         "geneTrends": gene_trends,
         "geneSelection": gene_selection,
-        "integrations": _build_integration_status(trajectory_history, driver_genes),
+        "integrations": _build_integration_status(
+            trajectory_history,
+            driver_genes,
+            allow_computed_fallback=include_heavy,
+        ),
+        "detailDeferred": not include_heavy,
     }
-

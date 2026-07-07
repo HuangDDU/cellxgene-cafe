@@ -1,3 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cellxgene-cafe"
+version = "0.1.0"
+description = "Non-invasive CAFE launcher for cellxgene"
+requires-python = ">=3.10"
+readme = "README.md"
+
+[project.scripts]
+cellxgene-cafe = "cellxgene_cafe.cli:main"
+
+[tool.setuptools]
+packages = ["cellxgene_cafe"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"cellxgene_cafe" = ["assets/**"]
+
 [tool.black]
 line-length = 120
 target-version = ["py310"]

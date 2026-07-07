@@ -49,8 +49,30 @@
   padding: 8px;
 }
 
-.cafe-dynamics-controls-panel > .cafe-subsection-title {
-  margin-bottom: 8px;
+.cafe-dynamics-panel-header {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0 0 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.cafe-dynamics-panel-header .cafe-subsection-title {
+  margin: 0;
+}
+
+.cafe-dynamics-panel-header[aria-expanded="false"] {
+  padding-bottom: 0;
+}
+
+.cafe-dynamics-panel-body {
+  min-width: 0;
 }
 
 .cafe-dynamics-control-grid {

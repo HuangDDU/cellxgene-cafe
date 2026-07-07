@@ -34,11 +34,13 @@ class Explorer extends React.Component {
       trendScale: "raw",
     };
     this._cancelled = false;
+    this._requestId = 0;
+    this._prevGeneQuery = "";
+    this._prevSelectedGenes = "";
   }
 
   componentDidMount() {
-    // Fetch immediately at app startup so tab is ready (all modules stay mounted)
-    this._loadSummary();
+    this._loadSummaryPair();
   }
 
   componentDidUpdate(prevProps) {
@@ -53,7 +55,7 @@ class Explorer extends React.Component {
     const sgChanged = this.state.selectedGenes.join(",") !== (this._prevSelectedGenes || "");
 
     if (tChanged || lChanged || gqChanged || sgChanged) {
-      this._loadSummary();
+      this._loadSummaryPair();
     }
     this._prevGeneQuery = this.state.geneQuery;
     this._prevSelectedGenes = this.state.selectedGenes.join(",");
@@ -63,16 +65,28 @@ class Explorer extends React.Component {
     this._cancelled = true;
   }
 
-  async _loadSummary() {
-    this.setState({ loading: true, error: "" });
+  async _loadSummaryPair() {
+    const lightSummary = await this._loadSummary({ includeHeavy: false, showLoading: true });
+    if (lightSummary && !this._cancelled) {
+      this._loadSummary({ includeHeavy: true, showLoading: false });
+    }
+  }
+
+  async _loadSummary({ includeHeavy = true, showLoading = true } = {}) {
+    const requestId = ++this._requestId;
+    if (showLoading) {
+      this.setState({ loading: true, error: "" });
+    }
+    const params = {
+      trajectory: this.props.context?.current?.trajectory || "",
+      layout: this.props.context?.current?.layout || "",
+      geneQuery: this.state.geneQuery,
+      genes: this.state.selectedGenes.join(","),
+      includeHeavy: includeHeavy ? "1" : "0",
+    };
     try {
-      const nextSummary = await fetchExplorerSummary({
-        trajectory: this.props.context?.current?.trajectory || "",
-        layout: this.props.context?.current?.layout || "",
-        geneQuery: this.state.geneQuery,
-        genes: this.state.selectedGenes.join(","),
-      });
-      if (this._cancelled) return;
+      const nextSummary = await fetchExplorerSummary(params);
+      if (this._cancelled || requestId !== this._requestId) return null;
       const nextMetricKeys = nextSummary?.benchmark?.metricKeys || [];
       this.setState((prev) => {
         const patch = { summary: nextSummary, loading: false };
@@ -84,9 +98,11 @@ class Explorer extends React.Component {
         }
         return patch;
       });
+      return nextSummary;
     } catch (err) {
       if (!this._cancelled)
         this.setState({ error: err?.message || "Failed to load Explorer summary", loading: false });
+      return null;
     }
   }
 

@@ -2,7 +2,7 @@ import React, { createContext, useEffect, useCallback, useRef } from "react";
 import { Provider } from "react-redux";
 
 import cafeStore from "./cafeStore";
-import { fetchContext, fetchManifest } from "./api";
+import { fetchContext, fetchManifest, prefetchModuleData } from "./api";
 import { getBridgeState, subscribeBridgeState } from "./hostBridge";
 import {
   setCafeManifest,
@@ -19,14 +19,6 @@ function createContextStore() {
   return {
     get(t, l) { return store[`${t || ""}|${l || ""}`] || null; },
     set(t, l, d) { if (d) store[`${t || ""}|${l || ""}`] = d; },
-    async seedAll(tr, la) {
-      if (!tr.length || !la.length) return;
-      const combos = []; tr.forEach((t) => la.forEach((l) => { if (!store[`${t}|${l}`]) combos.push({ trajectory: t, layout: l }); }));
-      if (!combos.length) return;
-      (await Promise.allSettled(combos.map((p) => fetchContext(p)))).forEach((r, i) => {
-        if (r.status === "fulfilled" && r.value) store[`${combos[i].trajectory}|${combos[i].layout}`] = r.value;
-      });
-    },
     async ensure(t, l) { const k = `${t || ""}|${l || ""}`; if (store[k]) return store[k]; const d = await fetchContext({ trajectory: t, layout: l }); store[k] = d; return d; },
   };
 }
@@ -58,10 +50,17 @@ export function CafeAppProvider({ children }) {
   const reloadContext = useCallback(async (nextParams = {}) => {
     const t = nextParams.trajectory || "", l = nextParams.layout || "";
     const cached = contextStore.get(t, l);
-    if (cached) { mergeContextIntoStore(cached); return; }
+    if (cached) {
+      mergeContextIntoStore(cached);
+      syncedTrajectoryRef.current = cached?.current?.trajectory || t;
+      syncedLayoutRef.current = cached?.current?.layout || l;
+      return;
+    }
     try {
       const data = await contextStore.ensure(t, l);
       mergeContextIntoStore(data);
+      syncedTrajectoryRef.current = data?.current?.trajectory || t;
+      syncedLayoutRef.current = data?.current?.layout || l;
     } catch (err) { setError(err?.message || "Failed to refresh context"); }
   }, [contextStore]);
 
@@ -88,8 +87,10 @@ export function CafeAppProvider({ children }) {
       syncedLayoutRef.current = contextData?.current?.layout || "";
       syncedTrajectoryRef.current = contextData?.current?.trajectory || "";
       setLoading(false);
-      // Background pre-fetch
-      contextStore.seedAll(contextData?.trajectories || [], contextData?.layouts || []);
+      prefetchModuleData({
+        trajectory: contextData?.current?.trajectory || "",
+        layout: contextData?.current?.layout || "",
+      });
     } catch (err) { setError(err?.message || "Failed to load CAFE plugin data"); setLoading(false); }
   }, [contextStore]);
 

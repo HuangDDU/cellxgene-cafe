@@ -26,6 +26,15 @@ class TestManifest:
         resp = client.get("/api/cafe/manifest")
         assert resp.get_json()["defaultTab"] == "plot"
 
+    def test_marks_native_anndata_as_requiring_conversion(self, client):
+        from flask import current_app
+
+        current_app.data_adaptor.data.uns = {}
+        resp = client.get("/api/cafe/manifest")
+        data_model = resp.get_json()["dataModel"]
+        assert data_model["kind"] == "AnnData"
+        assert data_model["requiresFateConversion"] is True
+
 
 class TestContextEmpty:
     def test_returns_200_when_no_trajectories(self, client):
@@ -102,6 +111,15 @@ class TestStaticPlot:
         resp = client.get("/api/cafe/plot/static?view=stream")
         assert resp.status_code == 200
 
+    def test_overlay_cache_name_is_distinct_from_regular_static_plot(self):
+        from server.cafe_api import _static_plot_cache_name
+
+        regular = _static_plot_cache_name("trajectory", "scvelo", "umap", overlay=False)
+        overlay = _static_plot_cache_name("trajectory", "scvelo", "umap", overlay=True)
+
+        assert regular != overlay
+        assert "overlay" in overlay
+
 
 class TestTrajectorySpec:
     def test_alias_returns_context(self, client):
@@ -117,6 +135,28 @@ class TestGatewayStatus:
         data = resp.get_json()
         assert "enabled" in data
         assert "url" in data
+
+
+class TestExplorerSummary:
+    def test_light_summary_skips_expensive_computation(self, client_with_data, monkeypatch):
+        import server.cafe_util.explorer as explorer_module
+
+        def fail_if_called(*_args, **_kwargs):
+            raise AssertionError("expensive Explorer computation should be deferred")
+
+        monkeypatch.setattr(explorer_module, "_ensure_explorer_benchmark_metrics", fail_if_called)
+        monkeypatch.setattr(explorer_module, "_compute_selected_driver_genes", fail_if_called)
+        monkeypatch.setattr(explorer_module, "_compute_selected_gene_trends", fail_if_called)
+        monkeypatch.setattr(explorer_module, "_compute_grn_fallback", fail_if_called)
+        monkeypatch.setattr(explorer_module, "_compute_gene_set_fallback", fail_if_called)
+
+        resp = client_with_data.get("/api/cafe/explorer/summary?includeHeavy=0")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["detailDeferred"] is True
+        assert data["benchmark"]["metricStatus"]["attempted"] is False
+        assert data["benchmark"]["rows"][0]["id"] == "ref"
 
 
 class TestJobEndpoints:

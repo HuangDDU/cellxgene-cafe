@@ -2,6 +2,65 @@
 <link href="https://cdn.jsdelivr.net/npm/jspanel4@4.16.1/dist/jspanel.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/jspanel4@4.16.1/dist/jspanel.min.js"></script>
 <script src="static/cafe-plugin.js?v=20260424-plotfix"></script>
+<style>
+  img[alt="CELLxGENE Annotate Logo"] {
+    color: transparent;
+    font-size: 0;
+    object-fit: contain;
+  }
+  .cafe-conversion-backdrop {
+    align-items: center;
+    background: rgba(21, 39, 56, 0.36);
+    display: flex;
+    inset: 0;
+    justify-content: center;
+    position: fixed;
+    z-index: 10000;
+  }
+  .cafe-conversion-dialog {
+    background: #ffffff;
+    border: 1px solid #c8d8e8;
+    border-radius: 6px;
+    box-shadow: 0 14px 36px rgba(29, 54, 76, 0.24);
+    color: #0d1b2a;
+    font-family: Arial, sans-serif;
+    max-width: 420px;
+    padding: 18px;
+    width: calc(100% - 40px);
+  }
+  .cafe-conversion-dialog h3 {
+    font-size: 16px;
+    margin: 0 0 10px;
+  }
+  .cafe-conversion-dialog p {
+    color: #355778;
+    font-size: 14px;
+    line-height: 1.45;
+    margin: 0 0 18px;
+  }
+  .cafe-conversion-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .cafe-conversion-actions button {
+    border: 1px solid #9db7d0;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 7px 12px;
+  }
+  .cafe-conversion-cancel {
+    background: #ffffff;
+    color: #17466f;
+  }
+  .cafe-conversion-confirm {
+    background: #2f6f9f;
+    border-color: #2f6f9f;
+    color: #ffffff;
+    font-weight: 600;
+  }
+</style>
 <script>
 (function () {
   const launcherId = "cafe-plugin-launcher";
@@ -31,6 +90,7 @@
   let layoutObserver = null;
   let graphPollHandle = null;
   let overlayImageSignature = "";
+  let acceptedFateConversion = false;
 
   function deepClone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -158,10 +218,62 @@
     return suffix ? `/api/cafe${path}?${suffix}` : `/api/cafe${path}`;
   }
 
-  function ensureOverlayRoot() {
+  function hostGraphTarget() {
+    // extract graph target for trajectory visualization
     const modelGroup = document.getElementById("model-transformation-group");
-    const svgRoot = modelGroup && modelGroup.ownerSVGElement ? modelGroup.ownerSVGElement : null;
-    if (!modelGroup || !svgRoot) {
+    if (modelGroup && modelGroup.ownerSVGElement) {
+      return { frameElement: modelGroup, svgRoot: modelGroup.ownerSVGElement };
+    }
+
+    const selectors = [
+      '[data-testid="scatterplot"]',
+      '[data-testid="scatterplot-canvas"]',
+      '[data-testid="cellxgene-scatterplot"]',
+      '[data-testid="graph"]',
+      '[data-testid="graph-canvas"]',
+      "canvas",
+      "svg"
+    ];
+    const seen = new Set();
+    const candidates = [];
+    selectors.forEach(function (selector) {
+      document.querySelectorAll(selector).forEach(function (element) {
+        if (!element || seen.has(element)) {
+          return;
+        }
+        seen.add(element);
+        if (
+          element.id === overlayRootId ||
+          element.closest("#cafe-plugin-panel, #cafe-plugin-root, .jsPanel, .cafe-conversion-backdrop")
+        ) {
+          return;
+        }
+        if (typeof element.getBoundingClientRect !== "function") {
+          return;
+        }
+        const rect = element.getBoundingClientRect();
+        if (!rect || rect.width < 120 || rect.height < 120) {
+          return;
+        }
+        candidates.push({ element, rect, area: rect.width * rect.height });
+      });
+    });
+
+    candidates.sort(function (left, right) { return right.area - left.area; });
+    if (!candidates.length) {
+      return null;
+    }
+    const frameElement = candidates[0].element;
+    const tagName = String(frameElement.tagName || "").toLowerCase();
+    return {
+      frameElement,
+      svgRoot: tagName === "svg" ? frameElement : frameElement.ownerSVGElement || null
+    };
+  }
+
+  function ensureOverlayRoot() {
+    const target = hostGraphTarget();
+    if (!target || !target.frameElement) {
       return null;
     }
     let overlayRoot = document.getElementById(overlayRootId);
@@ -180,17 +292,19 @@
       overlayRoot.style.display = "none";
       document.body.appendChild(overlayRoot);
     }
-    updateOverlayFrame(overlayRoot, modelGroup, svgRoot);
+    updateOverlayFrame(overlayRoot, target.frameElement, target.svgRoot);
     return overlayRoot;
   }
 
-  function updateOverlayFrame(overlayRoot, modelGroup, svgRoot) {
-    if (!overlayRoot || !modelGroup || !svgRoot) {
+  function updateOverlayFrame(overlayRoot, frameElement, svgRoot) {
+    if (!overlayRoot || !frameElement) {
       return;
     }
-    var rect = modelGroup.getBoundingClientRect();
+    var rect = frameElement.getBoundingClientRect();
     if (!rect.width || !rect.height) {
-      rect = svgRoot.getBoundingClientRect();
+      rect = svgRoot && typeof svgRoot.getBoundingClientRect === "function"
+        ? svgRoot.getBoundingClientRect()
+        : rect;
     }
     overlayRoot.style.left = rect.left + "px";
     overlayRoot.style.top = rect.top + "px";
@@ -207,6 +321,7 @@
       while (overlayRoot.firstChild) { overlayRoot.removeChild(overlayRoot.firstChild); }
       overlayRoot.style.display = "none";
     }
+    overlayImageSignature = "";
   }
 
   function asFiniteNumber(value) {
@@ -314,6 +429,85 @@
     };
   }
 
+  function overlayDataSignature(data, trajectoryType, w, h) {
+    var nodes = Array.isArray(data.nodes) ? data.nodes : [];
+    var edges = Array.isArray(data.edges) ? data.edges : [];
+    var segments = data.waypointSegments || {};
+    var pointSig = function (point) {
+      return [
+        String(point.id || ""),
+        Number(point.x || 0).toFixed(6),
+        Number(point.y || 0).toFixed(6)
+      ];
+    };
+    var segmentSig = Object.keys(segments).sort().map(function (groupId) {
+      var pts = Array.isArray(segments[groupId]) ? segments[groupId] : [];
+      return [
+        groupId,
+        pts.map(function (point) {
+          return [
+            Number(point.x || 0).toFixed(6),
+            Number(point.y || 0).toFixed(6),
+            Number(point.percentage || 0).toFixed(6)
+          ];
+        })
+      ];
+    });
+    return JSON.stringify({
+      t: trajectoryType,
+      w: Math.round(w),
+      h: Math.round(h),
+      nodes: nodes.map(pointSig),
+      edges: edges.map(function (edge) {
+        return [String(edge.id || ""), String(edge.source || ""), String(edge.target || "")];
+      }),
+      segments: segmentSig
+    });
+  }
+
+  function hasVectorOverlayData(preview) {
+    if (!preview || typeof preview !== "object") {
+      return false;
+    }
+    const nodes = Array.isArray(preview.nodes) ? preview.nodes : [];
+    if (nodes.length) {
+      return true;
+    }
+    const segments = preview.waypointSegments || {};
+    return Object.keys(segments).some(function (key) {
+      const points = segments[key];
+      return Array.isArray(points) && points.length > 1;
+    });
+  }
+
+  function overlayStaticImageUrl(context, state) {
+    const current = context?.current || {};
+    const trajectory = state?.trajectoryChoice?.current || current.trajectory || "";
+    const layout = state?.layoutChoice?.current || current.layout || "";
+    if (!trajectory || !layout) {
+      return "";
+    }
+    return apiUrl("/plot/static", {
+      view: "trajectory",
+      trajectory,
+      layout: String(layout || "").replace(/^X_/i, ""),
+      overlay: "1"
+    });
+  }
+
+  function drawOverlayImage(svg, url, w, h) {
+    while (svg.firstChild) { svg.removeChild(svg.firstChild); }
+    const image = document.createElementNS("http://www.w3.org/2000/svg", "image");
+    image.setAttribute("x", "0");
+    image.setAttribute("y", "0");
+    image.setAttribute("width", String(w));
+    image.setAttribute("height", String(h));
+    image.setAttribute("preserveAspectRatio", "none");
+    image.setAttribute("href", url);
+    image.setAttributeNS("http://www.w3.org/1999/xlink", "href", url);
+    svg.appendChild(image);
+  }
+
   function drawSVGTrajectory(svg, data, w, h) {
     // Clear previous content
     while (svg.firstChild) { svg.removeChild(svg.firstChild); }
@@ -321,17 +515,32 @@
     var nodes = data.nodes || [];
     var edges = data.edges || [];
     var segments = data.waypointSegments || {};
-    if (!nodes.length) return;
+    if (!nodes.length && !Object.keys(segments).length) return;
 
-    // Compute bounds from node coordinates
-    var xs = nodes.map(function (n) { return Number(n.x || 0); });
-    var ys = nodes.map(function (n) { return Number(n.y || 0); });
-    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
-    var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
-    var xSpan = (maxX - minX) || 1, ySpan = (maxY - minY) || 1;
-    var pad = 20;
-    var sx = function (x) { return pad + ((Number(x || 0) - minX) / xSpan) * (w - pad * 2); };
-    var sy = function (y) { return h - pad - ((Number(y || 0) - minY) / ySpan) * (h - pad * 2); };
+    var allPoints = nodes.slice();
+    Object.keys(segments).forEach(function (key) {
+      var pts = segments[key];
+      if (Array.isArray(pts)) {
+        allPoints = allPoints.concat(pts);
+      }
+    });
+    var xs = allPoints.map(function (p) { return Number(p.x || 0); });
+    var ys = allPoints.map(function (p) { return Number(p.y || 0); });
+    var normalizedCoords = xs.concat(ys).every(function (value) {
+      return Number.isFinite(value) && value >= -0.001 && value <= 1.001;
+    });
+    var sx, sy;
+    if (normalizedCoords) {
+      sx = function (x) { return Number(x || 0) * w; };
+      sy = function (y) { return (1 - Number(y || 0)) * h; };
+    } else {
+      var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+      var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+      var xSpan = (maxX - minX) || 1, ySpan = (maxY - minY) || 1;
+      var pad = 20;
+      sx = function (x) { return pad + ((Number(x || 0) - minX) / xSpan) * (w - pad * 2); };
+      sy = function (y) { return h - pad - ((Number(y || 0) - minY) / ySpan) * (h - pad * 2); };
+    }
 
     var nodeById = {};
     nodes.forEach(function (n) { nodeById[String(n.id)] = n; });
@@ -395,23 +604,37 @@
   }
 
   function renderOverlay() {
+    var showTrajectory = !!bridgeState.trajectory.showTrajectory;
+    if (!showTrajectory) {
+      clearOverlay();
+      return;
+    }
+
     var overlayRoot = ensureOverlayRoot();
     if (!overlayRoot) { return; }
 
-    var showTrajectory = !!bridgeState.trajectory.showTrajectory;
     var trajectoryType = bridgeState.trajectory.trajectoryType || "milestone";
     var preview = bridgeContext?.plot?.preview;
-    var hasData = !!(preview && preview.nodes && preview.nodes.length);
-
-    if (!showTrajectory || !hasData) {
-      overlayRoot.style.display = "none";
-      return;
-    }
 
     var w = parseFloat(overlayRoot.getAttribute("width")) || 0;
     var h = parseFloat(overlayRoot.getAttribute("height")) || 0;
     if (w < 10 || h < 10) {
       // Graph not rendered yet, skip
+      return;
+    }
+
+    if (!hasVectorOverlayData(preview)) {
+      var imageUrl = overlayStaticImageUrl(bridgeContext, bridgeState);
+      if (!imageUrl) {
+        overlayRoot.style.display = "none";
+        return;
+      }
+      var imageSig = JSON.stringify({ imageUrl: imageUrl, w: Math.round(w), h: Math.round(h) });
+      if (overlayImageSignature !== imageSig) {
+        drawOverlayImage(overlayRoot, imageUrl, w, h);
+        overlayImageSignature = imageSig;
+      }
+      overlayRoot.style.display = "";
       return;
     }
 
@@ -421,7 +644,7 @@
       waypointSegments: preview.waypointSegments || {}
     };
 
-    var sig = JSON.stringify({ n: data.nodes.length, e: data.edges.length, t: trajectoryType, w: w, h: h });
+    var sig = overlayDataSignature(data, trajectoryType, w, h);
     if (overlayImageSignature !== sig) {
       drawSVGTrajectory(overlayRoot, data, w, h);
       overlayImageSignature = sig;
@@ -444,7 +667,6 @@
       if (fetchId !== currentFetchId) {
         return;
       }
-      console.debug("CAFE overlay context loaded", payload);
       bridgeContext = payload;
       bridgeState.trajectoryChoice.available = Array.isArray(payload.trajectories) ? payload.trajectories : [];
       if (!bridgeState.trajectoryChoice.current) {
@@ -572,14 +794,12 @@
       }
 
       // Unknown action: still notify listeners for state sync
-      console.debug("CAFE host bridge: unhandled action type", action.type);
       notifyBridge();
     }
   };
 
   window.addEventListener(trajectoryUpdateEvent, function (event) {
     const patch = event && event.detail ? event.detail : {};
-    console.debug("CAFE overlay: received trajectory update event", patch);
     updateBridge(patch);
   });
 
@@ -593,7 +813,70 @@
     }
   }
 
-  function openPanel() {
+  function askFateAnnDataConversion() {
+    return new Promise(function (resolve) {
+      const backdrop = document.createElement("div");
+      backdrop.className = "cafe-conversion-backdrop";
+      backdrop.innerHTML = [
+        '<div class="cafe-conversion-dialog" role="dialog" aria-modal="true" aria-labelledby="cafe-conversion-title">',
+        '<h3 id="cafe-conversion-title">AnnData Detected</h3>',
+        '<p>This dataset appears to be a native AnnData object. Convert it to FateAnnData before opening CAFE?</p>',
+        '<div class="cafe-conversion-actions">',
+        '<button type="button" class="cafe-conversion-cancel">Cancel</button>',
+        '<button type="button" class="cafe-conversion-confirm">Convert and Open</button>',
+        '</div>',
+        '</div>'
+      ].join("");
+
+      function onKeydown(event) {
+        if (event.key === "Escape") {
+          close(false);
+        }
+      }
+
+      function close(value) {
+        document.removeEventListener("keydown", onKeydown);
+        if (backdrop.parentNode) {
+          backdrop.parentNode.removeChild(backdrop);
+        }
+        resolve(value);
+      }
+
+      backdrop.querySelector(".cafe-conversion-cancel").addEventListener("click", function () { close(false); });
+      backdrop.querySelector(".cafe-conversion-confirm").addEventListener("click", function () { close(true); });
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          close(false);
+        }
+      });
+      document.addEventListener("keydown", onKeydown);
+      document.body.appendChild(backdrop);
+      backdrop.querySelector(".cafe-conversion-confirm").focus();
+    });
+  }
+
+  async function confirmFateAnnDataConversion() {
+    if (acceptedFateConversion) {
+      return true;
+    }
+    try {
+      const resp = await fetch("/api/cafe/manifest", { cache: "no-store" });
+      if (!resp.ok) {
+        return true;
+      }
+      const manifest = await resp.json();
+      if (!manifest.dataModel || !manifest.dataModel.requiresFateConversion) {
+        return true;
+      }
+      acceptedFateConversion = await askFateAnnDataConversion();
+      return acceptedFateConversion;
+    } catch (error) {
+      console.warn("CAFE plugin failed to check data model.", error);
+      return true;
+    }
+  }
+
+  async function openPanel() {
     if (!window.jsPanel) {
       console.error("jsPanel is not loaded.");
       return;
@@ -605,9 +888,13 @@
       return;
     }
 
+    if (!(await confirmFateAnnDataConversion())) {
+      return;
+    }
+
     window.jsPanel.create({
       id: panelId,
-      headerTitle: "CAFE Plugins",
+      headerTitle: "CAFE",
       theme: "primary",
       contentSize: "780 640",
       position: "center-top 0 64",

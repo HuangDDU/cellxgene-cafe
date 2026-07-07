@@ -379,6 +379,22 @@ def _dataset_meta() -> Dict[str, Any]:
         "name": dataset_name or dataset_id or "dataset",
     }
 
+
+def _data_model_meta() -> Dict[str, Any]:
+    adata = _get_live_adata()
+    if adata is None:
+        return {"kind": "unknown", "isFateAnnData": False, "requiresFateConversion": False}
+
+    uns = _safe_dict(getattr(adata, "uns", {}))
+    class_name = type(adata).__name__
+    has_cafe_state = "cafe" in uns
+    is_fate = class_name == "FateAnnData" or has_cafe_state
+    return {
+        "kind": "FateAnnData" if is_fate else "AnnData",
+        "isFateAnnData": is_fate,
+        "requiresFateConversion": not is_fate,
+    }
+
 def _get_live_adata() -> Any:
     data_adaptor = current_app.data_adaptor
     return getattr(data_adaptor, "data", None)
@@ -743,4 +759,3 @@ def _resolve_selection(
     if not layout_name and layout_names:
         layout_name = _best_default(layout_names, ["umap", "tsne", "pca"])
     return trajectory_name, layout_name, entry, trajectory_names, layout_names
-

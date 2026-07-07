@@ -13,6 +13,7 @@ from .cafe_util import (
     _build_explorer_summary,
     _cancel_method_job,
     _cleanup_export_dir,
+    _data_model_meta,
     _dataset_meta,
     _build_preview,
     _trajectory_options,
@@ -38,6 +39,7 @@ def get_manifest():
     payload = {
         "apiVersion": 1,
         "dataset": _dataset_meta(),
+        "dataModel": _data_model_meta(),
         "plugin": {"name": "cafe", "version": "0.1.0"},
         "capabilities": ["plot", "data", "method", "explorer", "agent"],
         "defaultTab": "plot",
@@ -141,7 +143,11 @@ def get_static_plot():
                 request.args.get("layout", ""),
             )
             if t_name and l_name:
-                cache_path = _os.path.join(cache_dir, "img", f"{view}_{t_name}_{l_name}.png")
+                cache_path = _os.path.join(
+                    cache_dir,
+                    "img",
+                    _static_plot_cache_name(view, t_name, l_name, overlay=overlay),
+                )
                 if _os.path.isfile(cache_path):
                     try:
                         with open(cache_path, "rb") as f:
@@ -161,7 +167,6 @@ def get_static_plot():
             request.args.get("trajectory", ""),
             request.args.get("layout", ""),
         )
-        print(f"Static plot request: view={view} trajectory={trajectory_name} layout={layout_name} overlay={overlay}")
         
         if not trajectory_names:
             png_data = _draw_text_fallback(
@@ -180,7 +185,10 @@ def get_static_plot():
                 try:
                     img_dir = _os.path.join(cache_dir, "img")
                     _os.makedirs(img_dir, exist_ok=True)
-                    cache_path = _os.path.join(img_dir, f"{view}_{trajectory_name}_{layout_name}.png")
+                    cache_path = _os.path.join(
+                        img_dir,
+                        _static_plot_cache_name(view, trajectory_name, layout_name, overlay=overlay),
+                    )
                     with open(cache_path, "wb") as f:
                         f.write(png_data)
                 except Exception:
@@ -223,6 +231,12 @@ def get_static_plot():
         response.headers["Content-Type"] = "image/png"
         response.headers["X-CAFE-PLOT-SOURCE"] = "fallback-endpoint"
         return response
+
+
+def _static_plot_cache_name(view: str, trajectory_name: str, layout_name: str, overlay: bool = False) -> str:
+    """Build a cache filename for static plot images."""
+    mode = "overlay" if overlay else "plot"
+    return f"{view}_{trajectory_name}_{layout_name}_{mode}.png"
 
 
 @cafe_bp.route("/agent/query", methods=["POST"])
@@ -507,11 +521,13 @@ def get_explorer_summary():
     """Return normalized downstream analysis summary for the Explorer module."""
     genes_raw = str(request.args.get("genes", ""))
     selected_genes = [item.strip() for item in genes_raw.split(",") if item.strip()]
+    include_heavy = str(request.args.get("includeHeavy", "1")).strip().lower() not in {"0", "false", "no", "light"}
     payload = _build_explorer_summary(
         request.args.get("trajectory", ""),
         request.args.get("layout", ""),
         selected_genes=selected_genes,
         gene_query=request.args.get("geneQuery", ""),
+        include_heavy=include_heavy,
     )
     return make_response(jsonify(payload), 200)
 

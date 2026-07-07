@@ -48,3 +48,10 @@ logs/
 # Test coverage
 coverage/
 .nyc_output/
+
+# pypi middle file
+*.whl
+build
+cellxgene_cafe
+cellxgene_cafe.egg-info/
+dist-pypi

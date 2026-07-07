@@ -2,6 +2,7 @@
 
 from .adata import (
     _build_benchmark_rows,
+    _data_model_meta,
     _dataset_meta,
     _layout_names,
     _load_effective_trajectory_history,
